@@ -1,5 +1,7 @@
 # SVG Path Helper
 
+[![CI](https://github.com/zazaulola/svg-path-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/zazaulola/svg-path-helper/actions/workflows/ci.yml)
+
 A VS Code extension for hand-writing and editing SVG paths: a live preview that
 highlights the path segment under your cursor, cursor-aware syntax colouring
 inside `<path d="…">`, draggable points, and absolute⇄relative conversion.
