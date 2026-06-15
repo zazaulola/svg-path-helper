@@ -154,12 +154,15 @@
     "vscode:prepublish": "npm run build",
     "build": "node esbuild.js",
     "watch": "node esbuild.js --watch",
-    "typecheck": "tsc --noEmit -p ./"
+    "typecheck": "tsc --noEmit -p ./",
+    "test": "node --import tsx --test test/*.test.ts",
+    "test:watch": "node --import tsx --test --watch test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.84.0",
     "esbuild": "^0.20.2",
+    "tsx": "^4.22.4",
     "typescript": "^5.4.0"
   }
 }

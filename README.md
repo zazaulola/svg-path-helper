@@ -115,6 +115,7 @@ Open `example-transforms.svg` to try it.
 ```bash
 npm install
 npm run build      # or: npm run watch
+npm test           # unit tests (node:test + tsx)
 ```
 
 Then press **F5** ("Run SVG Path Helper") to launch an Extension Development
