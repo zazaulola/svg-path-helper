@@ -1,0 +1,112 @@
+:root {
+  --o-path: #00b7ff;
+  --o-seg: #ff3b3b;
+  --o-handle: #ffae00;
+  --o-end: #ff3b3b;
+  --o-ctrl: #ffae00;
+  --o-sel: #fff200;
+}
+
+body {
+  margin: 0;
+  padding: 10px;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+#stage {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  touch-action: none;
+  /* checkerboard so transparent SVGs stay visible */
+  background-color: #808080;
+  background-image:
+    linear-gradient(45deg, #00000022 25%, transparent 25%, transparent 75%, #00000022 75%, #00000022),
+    linear-gradient(45deg, #00000022 25%, transparent 25%, transparent 75%, #00000022 75%, #00000022);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+  border: 1px solid var(--vscode-panel-border, #ffffff22);
+}
+
+#svg-container {
+  display: block;
+  line-height: 0;
+}
+
+#svg-container svg {
+  display: block;
+}
+
+#overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.o-path {
+  fill: none;
+  stroke: var(--o-path);
+  stroke-opacity: 0.55;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.o-seg {
+  fill: none;
+  stroke: var(--o-seg);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.o-handle {
+  stroke: var(--o-handle);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+  stroke-opacity: 0.85;
+  vector-effect: non-scaling-stroke;
+}
+
+.o-pt {
+  stroke: #000;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.o-end { fill: var(--o-end); }
+.o-ctrl { fill: var(--o-ctrl); }
+
+.o-sel {
+  fill: var(--o-sel);
+  stroke: #ff0000;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Transparent grab target sitting under each draggable point. */
+.o-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+  cursor: grab;
+}
+
+.o-pt.draggable {
+  pointer-events: none; /* the .o-hit circle handles input */
+}
+
+#o-surface {
+  pointer-events: none; /* toggled to 'all' only during an active drag */
+}
+
+#info {
+  margin-top: 10px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  opacity: 0.85;
+  white-space: pre-wrap;
+}

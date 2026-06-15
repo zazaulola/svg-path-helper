@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect x="0" y="0" width="200" height="200" fill="#1e1e2e"/>
+  <path d="M 40 100 C 40 40 160 40 160 100 S 100 180 40 100 Z" fill="none" stroke="#89b4fa" stroke-width="3"/>
+  <path d="M30,30 q40,-20 80,0 t80,0" fill="none" stroke="#a6e3a1" stroke-width="3"/>
+  <path d="M100 130 h40 v30 h-40 z" fill="#f38ba8" fill-opacity="0.5" stroke="#f38ba8" stroke-width="2"/>
+  <path d="M20 160 A 30 30 0 0 1 80 160" fill="none" stroke="#fab387" stroke-width="3"/>
+  <!-- path inside a transformed group: the overlay must follow the transform -->
+  <g transform="translate(120 20) rotate(25) scale(0.6)">
+    <path d="M0 0 L 40 0 40 40 0 40 Z" fill="none" stroke="#cba6f7" stroke-width="4"/>
+  </g>
+</svg>

@@ -1,0 +1,125 @@
+{
+  "name": "svg-path-helper",
+  "displayName": "SVG Path Helper",
+  "description": "Live SVG preview with cursor-aware path highlighting and absolute/relative coordinate conversion.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Visualization",
+    "Programming Languages",
+    "Other"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zazaulola/svg-path-helper.git"
+  },
+  "homepage": "https://github.com/zazaulola/svg-path-helper#readme",
+  "bugs": {
+    "url": "https://github.com/zazaulola/svg-path-helper/issues"
+  },
+  "keywords": [
+    "svg",
+    "path",
+    "preview",
+    "bezier",
+    "vector"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "svgPathHelper.showPreview",
+        "title": "SVG Path: Open Preview",
+        "category": "SVG Path",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "svgPathHelper.toAbsolute",
+        "title": "SVG Path: Convert selected path(s) to Absolute coordinates",
+        "category": "SVG Path"
+      },
+      {
+        "command": "svgPathHelper.toRelative",
+        "title": "SVG Path: Convert selected path(s) to Relative coordinates",
+        "category": "SVG Path"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "svgPathHelper.showPreview",
+          "when": "resourceExtname == .svg || editorLangId == svg || editorLangId == xml",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "svgPathHelper.toAbsolute",
+          "when": "resourceExtname == .svg || editorLangId == svg || editorLangId == xml || editorLangId == html",
+          "group": "svgPathHelper@1"
+        },
+        {
+          "command": "svgPathHelper.toRelative",
+          "when": "resourceExtname == .svg || editorLangId == svg || editorLangId == xml || editorLangId == html",
+          "group": "svgPathHelper@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SVG Path Helper",
+      "properties": {
+        "svgPathHelper.precision": {
+          "type": "number",
+          "default": 6,
+          "minimum": 0,
+          "maximum": 12,
+          "description": "Number of fractional digits to keep when converting coordinates."
+        },
+        "svgPathHelper.colors.command": {
+          "type": "string",
+          "default": "#4fc1ff",
+          "description": "Color for path segment command letters (M, L, C, ...)."
+        },
+        "svgPathHelper.colors.endpoint": {
+          "type": "string",
+          "default": "#e8d44d",
+          "description": "Color for the coordinates of a segment's end point."
+        },
+        "svgPathHelper.colors.control": {
+          "type": "string",
+          "default": "#6a9955",
+          "description": "Color for the coordinates of control points."
+        },
+        "svgPathHelper.colors.segmentBg": {
+          "type": "string",
+          "default": "rgba(120,170,255,0.13)",
+          "description": "Background highlight for the segment under the cursor."
+        },
+        "svgPathHelper.colors.pointBg": {
+          "type": "string",
+          "default": "rgba(255,220,0,0.30)",
+          "description": "Background highlight for the point coordinates under the cursor."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.84.0",
+    "esbuild": "^0.20.2",
+    "typescript": "^5.4.0"
+  }
+}
