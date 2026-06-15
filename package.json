@@ -3,7 +3,8 @@
   "displayName": "SVG Path Helper",
   "description": "Live SVG preview with cursor-aware path highlighting and absolute/relative coordinate conversion.",
   "version": "0.1.0",
-  "publisher": "local",
+  "publisher": "zazaulola",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.84.0"
   },

@@ -148,6 +148,21 @@ repeated arguments (e.g. `M0 0 1 1 2 2`), smooth-curve control-point reflection
 - The preview renders the document's outer `<svg>`. Inline SVG inside HTML/JSX,
   and files with several `<svg>` blocks, are handled as the first/outer one.
 
+## Releasing
+
+CI builds a `.vsix` on every run (downloadable from the run's artifacts).
+Pushing a version tag publishes it:
+
+```bash
+npm version patch          # bump package.json version + create the tag
+git push --follow-tags     # triggers .github/workflows/publish.yml
+```
+
+The publish workflow packages the extension and pushes it to the VS Code
+Marketplace and Open VSX, then creates a GitHub Release with the `.vsix`. Set
+the repo secrets `VSCE_PAT` (Marketplace) and/or `OVSX_PAT` (Open VSX) first;
+whichever is missing is skipped.
+
 ## License
 
 MIT

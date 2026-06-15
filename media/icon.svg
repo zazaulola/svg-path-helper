@@ -1,0 +1,14 @@
+<svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="24" fill="#1e1e2e"/>
+  <rect x="1.5" y="1.5" width="125" height="125" rx="22.5" fill="none" stroke="#313244" stroke-width="2.5"/>
+  <path d="M22 96 C 40 96 44 32 64 32" fill="none" stroke="#89b4fa" stroke-width="7" stroke-linecap="round"/>
+  <path d="M64 32 C 84 32 88 96 106 96" fill="none" stroke="#89b4fa" stroke-width="7" stroke-linecap="round"/>
+  <line x1="64" y1="64" x2="30" y2="44" stroke="#fab387" stroke-width="4.5" stroke-linecap="round"/>
+  <line x1="64" y1="64" x2="98" y2="84" stroke="#fab387" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="22" cy="96" r="8" fill="#1e1e2e" stroke="#f38ba8" stroke-width="5"/>
+  <circle cx="106" cy="96" r="8" fill="#1e1e2e" stroke="#f38ba8" stroke-width="5"/>
+  <rect x="22" y="36" width="16" height="16" rx="2.5" transform="rotate(45 30 44)" fill="#fab387"/>
+  <rect x="90" y="76" width="16" height="16" rx="2.5" transform="rotate(45 98 84)" fill="#fab387"/>
+  <circle cx="64" cy="64" r="13" fill="#f9e2af"/>
+  <circle cx="64" cy="64" r="5.5" fill="#1e1e2e"/>
+</svg>

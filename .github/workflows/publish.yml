@@ -1,0 +1,53 @@
+name: Publish
+
+# Publishes the extension when a version tag is pushed (e.g. `git tag v0.1.1 && git push --tags`).
+# Bump "version" in package.json to match the tag first.
+# Configure repo secrets:
+#   VSCE_PAT  - VS Code Marketplace Personal Access Token (Marketplace: Manage scope)
+#   OVSX_PAT  - Open VSX access token (open-vsx.org)
+# Either secret may be omitted; that registry is then skipped.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Package VSIX
+        run: npx --yes @vscode/vsce package --no-dependencies -o svg-path-helper.vsix
+
+      - name: Publish to VS Code Marketplace
+        if: env.VSCE_PAT != ''
+        run: npx --yes @vscode/vsce publish --packagePath svg-path-helper.vsix
+
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx --yes ovsx publish svg-path-helper.vsix
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: svg-path-helper.vsix
+          generate_release_notes: true
