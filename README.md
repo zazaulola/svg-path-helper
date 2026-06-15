@@ -34,6 +34,18 @@ translate, rotate, scale, skew, nested, all of it:
 The overlay (outline, red top edge, selected corner) stays locked to the rendered,
 transformed shape.*
 
+### Rulers & coordinate readout
+Top and left rulers are calibrated to the root `viewBox` coordinate space and
+indicate, with guide lines projected toward the rulers:
+
+- the **bounding box of the whole current path** (cyan bracket + dashed box);
+- the **current segment's next (end) point** (red caret + crosshair);
+- the **live mouse position** (yellow caret + crosshair).
+
+The mouse coordinates are also shown in a corner badge. For paths inside a
+transform the indicators are projected into root coordinates, so the rulers stay
+truthful even when the geometry is rotated or scaled (see the second screenshot).
+
 ### Cursor-aware syntax highlighting
 Inside every `<path d="…">` the extension colours:
 

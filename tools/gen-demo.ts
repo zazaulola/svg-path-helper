@@ -76,6 +76,8 @@ interface DemoOpts {
   twoPane: boolean;
   editorPrefix: string; // e.g. '<path d="'
   editorSuffix: string; // e.g. '"/>'
+  mouseVx: number;      // synthetic mouse position (viewBox coords) for the screenshot
+  mouseVy: number;
 }
 
 function buildOverlay(pathOrdinal: number, segs: Segment[], segIndex: number, pointIndex: number) {
@@ -112,9 +114,15 @@ function genDemo(opts: DemoOpts): void {
   const editor = editorHtml(p.dText, segs, opts.segIndex, sp.start, sp.end);
 
   const previewPane = `
-  <div id="stage">
-    <div id="svg-container"></div>
-    <svg id="overlay" xmlns="http://www.w3.org/2000/svg"><g id="o-content"></g><rect id="o-surface" x="-100000" y="-100000" width="200000" height="200000" fill="transparent"></rect></svg>
+  <div id="frame">
+    <div id="corner"></div>
+    <svg id="ruler-top" class="ruler" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="ruler-left" class="ruler" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="stage">
+      <div id="svg-container"></div>
+      <svg id="overlay" xmlns="http://www.w3.org/2000/svg"><g id="o-guides"></g><g id="o-content"></g><rect id="o-surface" x="-100000" y="-100000" width="200000" height="200000" fill="transparent"></rect></svg>
+      <div id="coord-badge"></div>
+    </div>
   </div>
   <div id="info"></div>`;
 
@@ -157,6 +165,16 @@ ${css}
   send({type:'render', svg: ${JSON.stringify(tagged)} });
   send({type:'overlay', data: ${JSON.stringify(overlay)} });
   send({type:'info', text: ${JSON.stringify(info)} });
+  // Dispatch a synthetic mouse position so the screenshot shows the cursor
+  // ruler indicators + coordinate badge.
+  function showMouse(){
+    var el = document.querySelector('#svg-container svg');
+    if(!el || !el.getScreenCTM){ setTimeout(showMouse, 100); return; }
+    var p = el.createSVGPoint(); p.x = ${opts.mouseVx}; p.y = ${opts.mouseVy};
+    var s = p.matrixTransform(el.getScreenCTM());
+    document.getElementById('stage').dispatchEvent(new PointerEvent('pointermove', {clientX:s.x, clientY:s.y, bubbles:true}));
+  }
+  setTimeout(showMouse, 500);
 </script>
 </body></html>`;
 
@@ -169,14 +187,16 @@ ${css}
 // Hero: the blue heart/blob path (index 0), C segment, endpoint selected.
 genDemo({
   name: 'hero', pathOrdinal: 0, segIndex: 1, pointIndex: 2,
-  width: 980, height: 460, twoPane: true,
+  width: 1000, height: 520, twoPane: true,
   editorPrefix: '<path d="', editorSuffix: '" .../>',
+  mouseVx: 118, mouseVy: 58,
 });
 
 // Transform: purple square inside a translate/rotate/scale <g> (index 4),
 // L segment endpoint selected — proves the overlay follows parent transforms.
 genDemo({
   name: 'transform', pathOrdinal: 4, segIndex: 1, pointIndex: 0,
-  width: 560, height: 560, twoPane: false,
+  width: 600, height: 600, twoPane: false,
   editorPrefix: '', editorSuffix: '',
+  mouseVx: 60, mouseVy: 120,
 });

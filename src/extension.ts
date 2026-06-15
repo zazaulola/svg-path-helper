@@ -525,12 +525,19 @@ function getHtml(webview: vscode.Webview): string {
 <title>SVG Preview</title>
 </head>
 <body>
-<div id="stage">
-  <div id="svg-container"></div>
-  <svg id="overlay" xmlns="http://www.w3.org/2000/svg">
-    <g id="o-content"></g>
-    <rect id="o-surface" x="-100000" y="-100000" width="200000" height="200000" fill="transparent"></rect>
-  </svg>
+<div id="frame">
+  <div id="corner"></div>
+  <svg id="ruler-top" class="ruler" xmlns="http://www.w3.org/2000/svg"></svg>
+  <svg id="ruler-left" class="ruler" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="stage">
+    <div id="svg-container"></div>
+    <svg id="overlay" xmlns="http://www.w3.org/2000/svg">
+      <g id="o-guides"></g>
+      <g id="o-content"></g>
+      <rect id="o-surface" x="-100000" y="-100000" width="200000" height="200000" fill="transparent"></rect>
+    </svg>
+    <div id="coord-badge"></div>
+  </div>
 </div>
 <div id="info"></div>
 <script nonce="${nonce}" src="${jsUri}"></script>

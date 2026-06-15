@@ -5,6 +5,7 @@
   --o-end: #ff3b3b;
   --o-ctrl: #ffae00;
   --o-sel: #fff200;
+  --r-mouse: #ffd23b;
 }
 
 body {
@@ -15,10 +16,66 @@ body {
   font-size: var(--vscode-font-size);
 }
 
+#frame {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  grid-template-rows: 22px auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+/* Rulers carry no border: a border would push them past their fixed grid
+   tracks and offset the getBoundingClientRect-based tick origin by ~1px.
+   Separation comes from background contrast against the checkerboard stage. */
+#corner {
+  grid-column: 1;
+  grid-row: 1;
+  box-sizing: border-box;
+  background: #0000004d;
+}
+.ruler {
+  display: block;
+  box-sizing: border-box;
+  background: #0000004d;
+}
+#ruler-top { grid-column: 2; grid-row: 1; width: 100%; height: 22px; }
+#ruler-left { grid-column: 1; grid-row: 2; width: 38px; height: 100%; }
+
+.r-tick { stroke: #ffffff2e; stroke-width: 1; }
+.r-tick-major { stroke: #ffffff55; stroke-width: 1; }
+.r-label { fill: #9aa0aa; font: 9px var(--vscode-editor-font-family, monospace); }
+.r-bbox { stroke: var(--o-path); stroke-width: 1.5; fill: none; }
+.r-bbox-label { fill: var(--o-path); font: 9px var(--vscode-editor-font-family, monospace); }
+.r-caret-seg { fill: var(--o-seg); }
+.r-caret-mouse { fill: var(--r-mouse); }
+.r-caret-label-seg { fill: var(--o-seg); font: 9px var(--vscode-editor-font-family, monospace); }
+.r-caret-label-mouse { fill: var(--r-mouse); font: 9px var(--vscode-editor-font-family, monospace); }
+
+/* overlay guide lines */
+.g-bbox { fill: none; stroke: var(--o-path); stroke-opacity: 0.5; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.g-seg { stroke: var(--o-seg); stroke-opacity: 0.55; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.g-mouse { stroke: var(--r-mouse); stroke-opacity: 0.7; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+
+#coord-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 7px;
+  font: 11px var(--vscode-editor-font-family, monospace);
+  color: var(--r-mouse);
+  background: #000000aa;
+  border: 1px solid var(--r-mouse);
+  border-radius: 3px;
+  pointer-events: none;
+  opacity: 0;
+  white-space: nowrap;
+}
+#coord-badge.active { opacity: 1; }
+
 #stage {
   position: relative;
-  display: inline-block;
-  max-width: 100%;
+  display: block;
+  grid-column: 2;
+  grid-row: 2;
   touch-action: none;
   /* checkerboard so transparent SVGs stay visible */
   background-color: #808080;
