@@ -78,6 +78,36 @@ cursor) is converted. Command kinds are preserved (`S` stays `S`, `H` stays
 `H`); only letter case and numbers change. The first moveto is always kept
 absolute, per the SVG convention.
 
+### Transform operations
+Put the cursor on a `transform="…"` attribute value (or select it) and
+right-click — four commands appear:
+
+1. **Convert this transform to `matrix()`** — collapse the transform list
+   (`translate`/`scale`/`rotate`/`skewX`/`skewY`/`matrix`) of this element to a
+   single `matrix(a b c d e f)`.
+2. **Convert to `matrix()` (incl. nested)** — same, plus every descendant's own
+   transform.
+3. **Resolve (bake into geometry)** — make the transform disappear by applying
+   it to the content. The element (and basic shapes — `rect`, `circle`,
+   `ellipse`, `line`, `polyline`, `polygon`) becomes a transform-free `<path>`;
+   on a `<g>` the transform is pushed one level into the direct children
+   (nested transforms are preserved, composed). Styling (presentation
+   attributes + inline `style`) is carried over.
+4. **Resolve (incl. nested)** — recursively flatten the whole subtree so no
+   transforms remain anywhere; all shapes become baked `<path>`s.
+
+```xml
+<!-- before: cursor on the transform value, "Resolve" -->
+<rect transform="translate(20 20) rotate(15)" x="0" y="0" width="50" height="30" rx="6" fill="#89b4fa"/>
+<!-- after -->
+<path fill="#89b4fa" d="M 25.8 25.2 A 6 6 0 0 1 ... Z"/>
+```
+
+Arcs are transformed correctly under any affine matrix (rotation, non-uniform
+scale, skew, reflection) via a closed-form transform of the arc's ellipse;
+`H`/`V` are preserved under axis-aligned matrices and become `L` otherwise.
+Open `example-transforms.svg` to try it.
+
 ## Develop / run
 
 ```bash

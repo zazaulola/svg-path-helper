@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { Segment, parsePath } from './pathParser';
 import { findPaths, extractSvg, tagPaths, PathInstance } from './svgDocument';
 import { convertD, fullAbsoluteD, segmentOverlayD, formatNumber } from './pathConverter';
+import { buildTransformEdits, cursorOnTransform, OpKind } from './transformOps';
 
 // ---------------------------------------------------------------------------
 // Module state
@@ -11,6 +12,7 @@ let extCtx: vscode.ExtensionContext;
 let panel: vscode.WebviewPanel | undefined;
 let lastEditor: vscode.TextEditor | undefined;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+let ctxTimer: ReturnType<typeof setTimeout> | undefined;
 
 interface DecTypes {
   command: vscode.TextEditorDecorationType;
@@ -79,9 +81,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('svgPathHelper.showPreview', openPreview),
     vscode.commands.registerCommand('svgPathHelper.toAbsolute', () => convertSelection('abs')),
     vscode.commands.registerCommand('svgPathHelper.toRelative', () => convertSelection('rel')),
+    vscode.commands.registerCommand('svgPathHelper.transformToMatrix', () => runTransformOp('toMatrix')),
+    vscode.commands.registerCommand('svgPathHelper.transformToMatrixDeep', () => runTransformOp('toMatrixDeep')),
+    vscode.commands.registerCommand('svgPathHelper.transformResolve', () => runTransformOp('resolve')),
+    vscode.commands.registerCommand('svgPathHelper.transformResolveDeep', () => runTransformOp('resolveDeep')),
 
     vscode.window.onDidChangeActiveTextEditor((ed) => {
       updateDecorations(ed);
+      updateTransformContext(ed);
       if (ed && isSvgish(ed.document)) {
         lastEditor = ed;
         updatePreview(true);
@@ -89,6 +96,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
 
     vscode.window.onDidChangeTextEditorSelection((e) => {
+      if (e.textEditor === vscode.window.activeTextEditor) scheduleTransformContext();
       if (!isSvgish(e.textEditor.document)) return;
       updateDecorations(e.textEditor);
       updatePreview(false);
@@ -100,6 +108,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         updateDecorations(ed);
+        updateTransformContext(ed);
         updatePreview(true);
       }, 120);
     }),
@@ -113,6 +122,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   updateDecorations();
+  updateTransformContext();
 }
 
 export function deactivate(): void {
@@ -588,4 +598,43 @@ async function convertSelection(mode: 'abs' | 'rel'): Promise<void> {
     edit.replace(doc.uri, rng(doc, p.dStart, p.dStart + p.dText.length), newD);
   }
   await vscode.workspace.applyEdit(edit);
+}
+
+// ---------------------------------------------------------------------------
+// Transform operations (matrix conversion / resolve)
+// ---------------------------------------------------------------------------
+
+function updateTransformContext(editor?: vscode.TextEditor): void {
+  let on = false;
+  const ed = editor ?? vscode.window.activeTextEditor;
+  if (ed && isSvgish(ed.document)) {
+    const doc = ed.document;
+    const sel = ed.selection; // primary selection — matches what runTransformOp acts on
+    on = cursorOnTransform(doc.getText(), doc.offsetAt(sel.start), doc.offsetAt(sel.end));
+  }
+  void vscode.commands.executeCommand('setContext', 'svgPathHelper.cursorOnTransform', on);
+}
+
+function scheduleTransformContext(): void {
+  if (ctxTimer) clearTimeout(ctxTimer);
+  ctxTimer = setTimeout(() => updateTransformContext(), 90);
+}
+
+async function runTransformOp(kind: OpKind): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  const doc = editor.document;
+  const sel = editor.selection;
+  const edits = buildTransformEdits(
+    doc.getText(), doc.offsetAt(sel.start), doc.offsetAt(sel.end), kind, cfg('precision', 6),
+  );
+  if (!edits || edits.length === 0) {
+    vscode.window.showInformationMessage('SVG Path Helper: place the cursor on a transform="…" value first.');
+    return;
+  }
+  const we = new vscode.WorkspaceEdit();
+  for (const e of edits) {
+    we.replace(doc.uri, new vscode.Range(doc.positionAt(e.start), doc.positionAt(e.end)), e.text);
+  }
+  await vscode.workspace.applyEdit(we);
 }

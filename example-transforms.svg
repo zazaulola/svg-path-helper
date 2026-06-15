@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Put the cursor on any transform="..." value below and right-click to get
+       the four SVG Transform options. -->
+
+  <!-- A primitive with its own transform: "Resolve" bakes it into a <path>. -->
+  <rect transform="translate(20 20) rotate(15)" x="0" y="0" width="50" height="30"
+        rx="6" fill="#89b4fa"/>
+
+  <!-- A circle under a non-uniform scale: "Resolve" produces an elliptical-arc path. -->
+  <circle transform="translate(120 40) scale(1.6 0.8)" cx="0" cy="0" r="20" fill="#a6e3a1"/>
+
+  <!-- Nested groups: "Resolve (incl. nested)" flattens the whole subtree. -->
+  <g transform="translate(40 110) rotate(10)">
+    <g transform="scale(1.4)">
+      <line x1="0" y1="0" x2="40" y2="20" stroke="#fab387" stroke-width="3"/>
+      <polygon points="0,30 30,30 15,55" fill="#f38ba8"/>
+    </g>
+  </g>
+</svg>

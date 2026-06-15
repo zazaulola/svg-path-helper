@@ -49,6 +49,26 @@
         "command": "svgPathHelper.toRelative",
         "title": "SVG Path: Convert selected path(s) to Relative coordinates",
         "category": "SVG Path"
+      },
+      {
+        "command": "svgPathHelper.transformToMatrix",
+        "title": "SVG Transform: Convert this transform to matrix()",
+        "category": "SVG Transform"
+      },
+      {
+        "command": "svgPathHelper.transformToMatrixDeep",
+        "title": "SVG Transform: Convert this transform to matrix() (incl. nested)",
+        "category": "SVG Transform"
+      },
+      {
+        "command": "svgPathHelper.transformResolve",
+        "title": "SVG Transform: Resolve (bake into geometry)",
+        "category": "SVG Transform"
+      },
+      {
+        "command": "svgPathHelper.transformResolveDeep",
+        "title": "SVG Transform: Resolve (bake into geometry, incl. nested)",
+        "category": "SVG Transform"
       }
     ],
     "menus": {
@@ -69,6 +89,26 @@
           "command": "svgPathHelper.toRelative",
           "when": "resourceExtname == .svg || editorLangId == svg || editorLangId == xml || editorLangId == html",
           "group": "svgPathHelper@2"
+        },
+        {
+          "command": "svgPathHelper.transformToMatrix",
+          "when": "svgPathHelper.cursorOnTransform",
+          "group": "svgPathHelperTransform@1"
+        },
+        {
+          "command": "svgPathHelper.transformToMatrixDeep",
+          "when": "svgPathHelper.cursorOnTransform",
+          "group": "svgPathHelperTransform@2"
+        },
+        {
+          "command": "svgPathHelper.transformResolve",
+          "when": "svgPathHelper.cursorOnTransform",
+          "group": "svgPathHelperTransform@3"
+        },
+        {
+          "command": "svgPathHelper.transformResolveDeep",
+          "when": "svgPathHelper.cursorOnTransform",
+          "group": "svgPathHelperTransform@4"
         }
       ]
     },
