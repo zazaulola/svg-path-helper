@@ -1,6 +1,9 @@
 # SVG Path Helper
 
 [![CI](https://github.com/zazaulola/svg-path-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/zazaulola/svg-path-helper/actions/workflows/ci.yml)
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/zazaulola.svg-path-helper?label=Marketplace&color=4fc1ff)](https://marketplace.visualstudio.com/items?itemName=zazaulola.svg-path-helper)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/zazaulola.svg-path-helper?label=Installs)](https://marketplace.visualstudio.com/items?itemName=zazaulola.svg-path-helper)
+[![Open VSX](https://img.shields.io/open-vsx/v/zazaulola/svg-path-helper?label=Open%20VSX&color=a6e3a1)](https://open-vsx.org/extension/zazaulola/svg-path-helper)
 
 A VS Code extension for hand-writing and editing SVG paths: a live preview that
 highlights the path segment under your cursor, cursor-aware syntax colouring
