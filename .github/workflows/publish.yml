@@ -41,9 +41,13 @@ jobs:
         if: env.VSCE_PAT != ''
         run: npx --yes @vscode/vsce publish --packagePath svg-path-helper.vsix
 
+      # always() so a Marketplace failure doesn't block Open VSX; create-namespace
+      # is needed (and idempotent) for the first publish to a new namespace.
       - name: Publish to Open VSX
-        if: env.OVSX_PAT != ''
-        run: npx --yes ovsx publish svg-path-helper.vsix
+        if: ${{ always() && env.OVSX_PAT != '' }}
+        run: |
+          npx --yes ovsx create-namespace zazaulola || true
+          npx --yes ovsx publish svg-path-helper.vsix
 
       - name: GitHub Release
         if: startsWith(github.ref, 'refs/tags/')

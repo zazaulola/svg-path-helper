@@ -1,6 +1,6 @@
 {
   "name": "svg-path-helper",
-  "displayName": "SVG Path Helper",
+  "displayName": "SVG Path Studio",
   "description": "Live SVG preview with cursor-aware path highlighting and absolute/relative coordinate conversion.",
   "version": "0.1.0",
   "publisher": "zazaulola",
