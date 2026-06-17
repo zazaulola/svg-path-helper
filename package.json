@@ -2,7 +2,7 @@
   "name": "svg-path-helper",
   "displayName": "SVG Path Studio",
   "description": "Live SVG preview with cursor-aware path highlighting and absolute/relative coordinate conversion.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "zazaulola",
   "icon": "media/icon.png",
   "engines": {
@@ -130,7 +130,11 @@
         },
         "svgPathHelper.preview.background": {
           "type": "string",
-          "enum": ["checker", "light", "dark"],
+          "enum": [
+            "checker",
+            "light",
+            "dark"
+          ],
           "default": "checker",
           "description": "Default preview background (also switchable from the preview toolbar)."
         },
