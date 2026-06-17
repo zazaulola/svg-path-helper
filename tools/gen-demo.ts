@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parsePath, Segment } from '../src/pathParser';
 import { fullAbsoluteD, segmentOverlayD } from '../src/pathConverter';
-import { findPaths, extractSvg, tagPaths } from '../src/svgDocument';
+import { findPaths, extractSvg, tagSvg, elementIdAt } from '../src/svgDocument';
 
 const ROOT = path.resolve(__dirname, '..');
 const css = fs.readFileSync(path.join(ROOT, 'media', 'preview.css'), 'utf8');
@@ -80,7 +80,7 @@ interface DemoOpts {
   mouseVy: number;
 }
 
-function buildOverlay(pathOrdinal: number, segs: Segment[], segIndex: number, pointIndex: number) {
+function buildOverlay(pathOrdinal: number, segs: Segment[], segIndex: number, pointIndex: number, elementId: number) {
   const seg = segs[segIndex];
   const sp = seg.points[pointIndex];
   return {
@@ -90,6 +90,7 @@ function buildOverlay(pathOrdinal: number, segs: Segment[], segIndex: number, po
     handles: seg.handles.map((h) => ({ x1: h.x1, y1: h.y1, x2: h.x2, y2: h.y2 })),
     points: seg.points.map((pp, idx) => ({ x: pp.x, y: pp.y, role: pp.role, selected: idx === pointIndex, drag: pp.hasSource ? {} : null })),
     selected: sp && sp.hasSource ? { x: sp.x, y: sp.y } : null,
+    elementId,
   };
 }
 
@@ -101,7 +102,7 @@ const SEG_NAMES: Record<string, string> = {
 
 function genDemo(opts: DemoOpts): void {
   const region = extractSvg(exampleSvg)!;
-  const tagged = tagPaths(region.svg);
+  const tagged = tagSvg(region.svg);
   const regionEnd = region.start + region.svg.length;
   const paths = findPaths(exampleSvg).filter((p) => p.dStart >= region.start && p.dStart < regionEnd);
   const p = paths[opts.pathOrdinal];
@@ -109,11 +110,17 @@ function genDemo(opts: DemoOpts): void {
   const seg = segs[opts.segIndex];
   const sp = seg.points[opts.pointIndex];
 
-  const overlay = buildOverlay(opts.pathOrdinal, segs, opts.segIndex, opts.pointIndex);
+  const elementId = elementIdAt(region.svg, p.dStart + sp.start - region.start);
+  const overlay = buildOverlay(opts.pathOrdinal, segs, opts.segIndex, opts.pointIndex, elementId);
   const info = `${seg.letter}  ·  ${SEG_NAMES[seg.upper]}  ·  ${seg.relative ? 'relative' : 'absolute'}  ·  point selected (drag to edit)`;
   const editor = editorHtml(p.dText, segs, opts.segIndex, sp.start, sp.end);
 
   const previewPane = `
+  <div id="toolbar">
+    <div class="tb-grp"><button id="zoom-out">&#8722;</button><span id="zoom-label">100%</span><button id="zoom-in">+</button><button id="zoom-fit">Fit</button></div>
+    <div class="tb-grp" id="bg-grp"><button data-bg="checker">&#9638;</button><button data-bg="light">&#9723;</button><button data-bg="dark">&#9724;</button></div>
+    <button id="grid-toggle" class="tb-toggle">Grid</button>
+  </div>
   <div id="frame">
     <div id="corner"></div>
     <svg id="ruler-top" class="ruler" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -162,7 +169,7 @@ ${css}
 <script>${js}</script>
 <script>
   function send(m){ window.dispatchEvent(new MessageEvent('message',{data:m})); }
-  send({type:'render', svg: ${JSON.stringify(tagged)} });
+  send({type:'render', svg: ${JSON.stringify(tagged)}, config:{background:'checker', showGrid:true} });
   send({type:'overlay', data: ${JSON.stringify(overlay)} });
   send({type:'info', text: ${JSON.stringify(info)} });
   // Dispatch a synthetic mouse position so the screenshot shows the cursor

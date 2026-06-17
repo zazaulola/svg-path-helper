@@ -123,6 +123,9 @@ interface State {
 }
 
 export function parsePath(d: string): ParsedPath {
+  // Tolerate the Unicode minus sign (U+2212) as a hyphen-minus. It is a single
+  // code unit, so this 1:1 replacement preserves every source offset.
+  if (d.indexOf('−') >= 0) d = d.replace(/−/g, '-');
   const segments: Segment[] = [];
   const n = d.length;
   let i = 0;

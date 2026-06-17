@@ -19,10 +19,13 @@ control points (with handles), and the selected end point.*
 ## Features
 
 ### Live preview
-`SVG Path: Open Preview` (command palette, or the preview icon in the editor
-title bar for `.svg` files) opens a panel beside the editor. Driven by the
-cursor position, it overlays:
+The preview opens automatically beside an `.svg` file (or run `SVG Path: Open
+Preview` / click the preview icon in the editor title bar). A toolbar gives you
+**zoom** (− / % / + / Fit), the **background** (checkerboard / light / dark), and
+a **grid** toggle. Driven by the cursor position, the preview overlays:
 
+- the **element under the cursor** — move the cursor onto any tag (`<rect>`,
+  `<circle>`, `<g>`, …) and its oriented bounding box is outlined;
 - the **current path** (faint blue outline);
 - the **current segment** (red, thick);
 - the **points of the current segment** — end point (red) and control points
@@ -134,6 +137,9 @@ captured with headless Chrome.
 | Setting | Default | Description |
 | --- | --- | --- |
 | `svgPathHelper.precision` | `6` | Fractional digits kept when converting/dragging. |
+| `svgPathHelper.autoOpenPreview` | `true` | Auto-open the preview beside an `.svg` file. |
+| `svgPathHelper.preview.background` | `checker` | Default preview background (`checker`/`light`/`dark`). |
+| `svgPathHelper.preview.showGrid` | `true` | Show the coordinate grid & rulers by default. |
 | `svgPathHelper.colors.command` | `#4fc1ff` | Command letter colour. |
 | `svgPathHelper.colors.endpoint` | `#e8d44d` | End-point coordinate colour. |
 | `svgPathHelper.colors.control` | `#6a9955` | Control-point coordinate colour. |

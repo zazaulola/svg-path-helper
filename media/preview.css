@@ -77,14 +77,74 @@ body {
   grid-column: 2;
   grid-row: 2;
   touch-action: none;
-  /* checkerboard so transparent SVGs stay visible */
+  overflow: auto;
+  max-height: 78vh;
+  border: 1px solid var(--vscode-panel-border, #ffffff22);
+}
+/* background variants (checkerboard keeps transparent SVGs visible) */
+#stage.bg-checker {
   background-color: #808080;
   background-image:
     linear-gradient(45deg, #00000022 25%, transparent 25%, transparent 75%, #00000022 75%, #00000022),
     linear-gradient(45deg, #00000022 25%, transparent 25%, transparent 75%, #00000022 75%, #00000022);
   background-size: 16px 16px;
   background-position: 0 0, 8px 8px;
+}
+#stage.bg-light { background: #f4f4f4; }
+#stage.bg-dark { background: #1e1e2e; }
+
+/* toolbar */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.tb-grp {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   border: 1px solid var(--vscode-panel-border, #ffffff22);
+  border-radius: 4px;
+  padding: 1px;
+}
+#toolbar button {
+  font: inherit;
+  font-size: 12px;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+#toolbar button:hover { background: var(--vscode-toolbar-hoverBackground, #ffffff1a); }
+#toolbar button.on { background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); }
+#zoom-label { min-width: 42px; text-align: center; font-size: 12px; opacity: 0.85; }
+#grid-toggle { border: 1px solid var(--vscode-panel-border, #ffffff22); border-radius: 4px; }
+
+/* grid-off collapses the ruler tracks */
+#frame.no-grid { grid-template-columns: 0 1fr; grid-template-rows: 0 auto; }
+#frame.no-grid #corner,
+#frame.no-grid .ruler { display: none; }
+
+/* element-under-cursor highlight (oriented bounding box) */
+.o-elbox {
+  fill: none;
+  stroke: #ffffff;
+  stroke-opacity: 0.85;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+}
+/* faint coordinate grid lines */
+.g-grid {
+  stroke: #ffffff14;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 #svg-container {

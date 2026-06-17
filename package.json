@@ -123,6 +123,22 @@
           "maximum": 12,
           "description": "Number of fractional digits to keep when converting coordinates."
         },
+        "svgPathHelper.autoOpenPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open the preview beside an .svg file when it becomes active."
+        },
+        "svgPathHelper.preview.background": {
+          "type": "string",
+          "enum": ["checker", "light", "dark"],
+          "default": "checker",
+          "description": "Default preview background (also switchable from the preview toolbar)."
+        },
+        "svgPathHelper.preview.showGrid": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the coordinate grid and rulers in the preview by default (toggle from the toolbar)."
+        },
         "svgPathHelper.colors.command": {
           "type": "string",
           "default": "#4fc1ff",

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Segment, parsePath } from './pathParser';
-import { findPaths, extractSvg, tagPaths, PathInstance } from './svgDocument';
+import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths, PathInstance } from './svgDocument';
 import { convertD, fullAbsoluteD, segmentOverlayD, formatNumber } from './pathConverter';
 import { buildTransformEdits, cursorOnTransform, OpKind } from './transformOps';
 
@@ -13,6 +13,7 @@ let panel: vscode.WebviewPanel | undefined;
 let lastEditor: vscode.TextEditor | undefined;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 let ctxTimer: ReturnType<typeof setTimeout> | undefined;
+let userClosedPreview = false; // suppress auto-open after a manual dismiss
 
 interface DecTypes {
   command: vscode.TextEditorDecorationType;
@@ -67,6 +68,8 @@ interface OverlayData {
   handles: OverlayHandle[];
   points: OverlayPoint[];
   selected: { x: number; y: number } | null;
+  /** data-sph-el of the element under the cursor (for element highlight), or -1. */
+  elementId: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +94,7 @@ export function activate(context: vscode.ExtensionContext): void {
       updateTransformContext(ed);
       if (ed && isSvgish(ed.document)) {
         lastEditor = ed;
+        maybeAutoOpenPreview(ed);
         updatePreview(true);
       }
     }),
@@ -123,10 +127,25 @@ export function activate(context: vscode.ExtensionContext): void {
 
   updateDecorations();
   updateTransformContext();
+  maybeAutoOpenPreview();
 }
 
 export function deactivate(): void {
   disposeDecTypes();
+}
+
+function previewConfig(): { background: string; showGrid: boolean } {
+  return {
+    background: cfg<string>('preview.background', 'checker'),
+    showGrid: cfg<boolean>('preview.showGrid', true),
+  };
+}
+
+/** Auto-open the preview beside an `.svg` editor (if enabled, not already open, not dismissed). */
+function maybeAutoOpenPreview(editor?: vscode.TextEditor): void {
+  if (panel || userClosedPreview || !cfg<boolean>('autoOpenPreview', true)) return;
+  const ed = editor ?? vscode.window.activeTextEditor;
+  if (ed && ed.document.fileName.toLowerCase().endsWith('.svg')) openPreview();
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +288,7 @@ function updateDecorations(editor?: vscode.TextEditor): void {
 // ---------------------------------------------------------------------------
 
 function openPreview(): void {
+  userClosedPreview = false; // explicit open clears the auto-open suppression
   if (panel) {
     panel.reveal(vscode.ViewColumn.Beside, true);
     updatePreview(true);
@@ -285,7 +305,7 @@ function openPreview(): void {
     },
   );
   panel.webview.html = getHtml(panel.webview);
-  panel.onDidDispose(() => { panel = undefined; }, null, extCtx.subscriptions);
+  panel.onDidDispose(() => { panel = undefined; userClosedPreview = true; }, null, extCtx.subscriptions);
   panel.webview.onDidReceiveMessage(handleWebviewMessage);
 }
 
@@ -332,7 +352,7 @@ function overlayForSegment(
   const segs = p.parsed.segments;
   const pathD = segs.length ? fullAbsoluteD(segs) : null;
   const seg = segs[segIndex];
-  if (!seg) return { pathIndex, pathD, segD: null, handles: [], points: [], selected: null };
+  if (!seg) return { pathIndex, pathD, segD: null, handles: [], points: [], selected: null, elementId: -1 };
   const sp = selectedIdx >= 0 ? seg.points[selectedIdx] : undefined;
   return {
     pathIndex,
@@ -341,6 +361,7 @@ function overlayForSegment(
     handles: seg.handles.map((h) => ({ x1: h.x1, y1: h.y1, x2: h.x2, y2: h.y2 })),
     points: makePoints(p, pathIndex, segIndex, seg, selectedIdx, doc),
     selected: sp && sp.hasSource ? { x: sp.x, y: sp.y } : null,
+    elementId: -1,
   };
 }
 
@@ -351,7 +372,7 @@ function overlayForCursor(p: PathInstance, pathIndex: number, rel: number, doc: 
     return {
       pathIndex,
       pathD: segs.length ? fullAbsoluteD(segs) : null,
-      segD: null, handles: [], points: [], selected: null,
+      segD: null, handles: [], points: [], selected: null, elementId: -1,
     };
   }
   const segIndex = segs.indexOf(seg);
@@ -373,29 +394,20 @@ function infoText(p: PathInstance | undefined, seg: Segment | undefined, selecte
   return s;
 }
 
-/** Paths that live inside the SVG region, in render (data-sph-idx) order. */
-function svgPaths(text: string): PathInstance[] {
-  const region = extractSvg(text);
-  const all = findPaths(text);
-  if (!region) return all;
-  const end = region.start + region.svg.length;
-  return all.filter((p) => p.dStart >= region.start && p.dStart < end);
-}
-
 function updatePreview(render: boolean): void {
   if (!panel) return;
   const editor = getTargetEditor();
   if (!editor) return;
   const doc = editor.document;
   const text = doc.getText();
+  const region = extractSvg(text);
+  const off = doc.offsetAt(editor.selection.active);
 
   if (render) {
-    const region = extractSvg(text);
-    panel.webview.postMessage({ type: 'render', svg: region ? tagPaths(region.svg) : '' });
+    panel.webview.postMessage({ type: 'render', svg: region ? tagSvg(region.svg) : '', config: previewConfig() });
   }
 
   const paths = svgPaths(text);
-  const off = doc.offsetAt(editor.selection.active);
 
   let cur: PathInstance | undefined;
   let curIdx = -1;
@@ -410,7 +422,13 @@ function updatePreview(render: boolean): void {
   const docRef: DocRef = { uri: doc.uri.toString(), version: doc.version };
   const data: OverlayData = cur
     ? overlayForCursor(cur, curIdx, curRel, docRef)
-    : { pathIndex: -1, pathD: null, segD: null, handles: [], points: [], selected: null };
+    : { pathIndex: -1, pathD: null, segD: null, handles: [], points: [], selected: null, elementId: -1 };
+
+  // Element under the cursor (any tag) for the element highlight.
+  if (region) {
+    const rel = off - region.start;
+    if (rel >= 0 && rel <= region.svg.length) data.elementId = elementIdAt(region.svg, rel);
+  }
   panel.webview.postMessage({ type: 'overlay', data });
 
   const seg = cur ? findSegAt(cur.parsed.segments, curRel) : undefined;
@@ -535,6 +553,20 @@ function getHtml(webview: vscode.Webview): string {
 <title>SVG Preview</title>
 </head>
 <body>
+<div id="toolbar">
+  <div class="tb-grp">
+    <button id="zoom-out" title="Zoom out">&#8722;</button>
+    <span id="zoom-label">100%</span>
+    <button id="zoom-in" title="Zoom in">+</button>
+    <button id="zoom-fit" title="Fit to width">Fit</button>
+  </div>
+  <div class="tb-grp" id="bg-grp">
+    <button data-bg="checker" title="Checkerboard">&#9638;</button>
+    <button data-bg="light" title="Light background">&#9723;</button>
+    <button data-bg="dark" title="Dark background">&#9724;</button>
+  </div>
+  <button id="grid-toggle" class="tb-toggle" title="Toggle coordinate grid &amp; rulers">Grid</button>
+</div>
 <div id="frame">
   <div id="corner"></div>
   <svg id="ruler-top" class="ruler" xmlns="http://www.w3.org/2000/svg"></svg>

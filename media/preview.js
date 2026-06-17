@@ -29,9 +29,19 @@
   const rulerLeft = /** @type {SVGSVGElement} */ (/** @type {any} */ (document.getElementById('ruler-left')));
   const badge = /** @type {HTMLElement} */ (document.getElementById('coord-badge'));
   const info = /** @type {HTMLElement} */ (document.getElementById('info'));
+  const frame = /** @type {HTMLElement} */ (document.getElementById('frame'));
+  const zoomLabel = /** @type {HTMLElement} */ (document.getElementById('zoom-label'));
 
   /** @type {any} */ let lastOverlay = null;
   /** @type {{x:number,y:number}|null} */ let mouseVB = null;
+
+  // Toolbar state (persisted across reloads).
+  const saved = vscode.getState() || {};
+  let seeded = Object.keys(saved).length > 0; // has the user/config already set state?
+  let zoom = saved.zoom || 1;
+  let background = saved.background || 'checker';
+  let gridOn = saved.gridOn !== false;
+  function persist() { vscode.setState({ zoom: zoom, background: background, gridOn: gridOn }); }
 
   let drawScheduled = false;
   let rulersScheduled = false;
@@ -52,6 +62,52 @@
     if (idx == null || idx < 0) return null;
     return container.querySelector('[data-sph-idx="' + idx + '"]');
   }
+
+  function elElFor(id) {
+    if (id == null || id < 0) return null;
+    return container.querySelector('[data-sph-el="' + id + '"]');
+  }
+
+  // --- toolbar: zoom / background / grid ------------------------------------
+
+  function applyBackground() {
+    stage.classList.remove('bg-checker', 'bg-light', 'bg-dark');
+    stage.classList.add('bg-' + background);
+    document.querySelectorAll('#bg-grp button').forEach((b) =>
+      b.classList.toggle('on', b.getAttribute('data-bg') === background));
+  }
+
+  function applyGrid() {
+    frame.classList.toggle('no-grid', !gridOn);
+    const gt = document.getElementById('grid-toggle');
+    if (gt) gt.classList.toggle('on', gridOn);
+  }
+
+  function applyZoom() {
+    const el = svgEl();
+    if (el && el.getAttribute('viewBox')) {
+      if (zoom === 1) { el.style.width = '100%'; }
+      else { el.style.width = Math.max(1, stage.clientWidth * zoom) + 'px'; }
+      el.style.height = 'auto';
+    }
+    if (zoomLabel) zoomLabel.textContent = Math.round(zoom * 100) + '%';
+    requestDraw();
+  }
+
+  function setZoom(z) {
+    zoom = Math.min(16, Math.max(0.1, z));
+    persist();
+    applyZoom();
+  }
+
+  document.getElementById('zoom-in').addEventListener('click', () => setZoom(zoom * 1.25));
+  document.getElementById('zoom-out').addEventListener('click', () => setZoom(zoom / 1.25));
+  document.getElementById('zoom-fit').addEventListener('click', () => setZoom(1));
+  document.querySelectorAll('#bg-grp button').forEach((b) =>
+    b.addEventListener('click', () => { background = b.getAttribute('data-bg'); persist(); applyBackground(); }));
+  document.getElementById('grid-toggle').addEventListener('click', () => {
+    gridOn = !gridOn; persist(); applyGrid(); applyZoom(); // toggling rulers changes the stage width
+  });
 
   function node(tag, attrs, parent) {
     const e = document.createElementNS(NS, tag);
@@ -83,8 +139,15 @@
 
     const r = el.getBoundingClientRect();
     const sr = stage.getBoundingClientRect();
-    overlay.style.left = (r.left - sr.left) + 'px';
-    overlay.style.top = (r.top - sr.top) + 'px';
+    // Content-relative offset (+ scroll) so the absolutely-positioned overlay
+    // scrolls together with the (possibly zoomed) SVG inside #stage. The abs
+    // origin is the padding edge, so subtract #stage's border from the
+    // border-box rect to avoid a 1px shift.
+    const cs = getComputedStyle(stage);
+    const bl = parseFloat(cs.borderLeftWidth) || 0;
+    const bt = parseFloat(cs.borderTopWidth) || 0;
+    overlay.style.left = (r.left - sr.left - bl + stage.scrollLeft) + 'px';
+    overlay.style.top = (r.top - sr.top - bt + stage.scrollTop) + 'px';
     overlay.style.width = r.width + 'px';
     overlay.style.height = r.height + 'px';
     overlay.setAttribute('viewBox', '0 0 ' + (r.width || 1) + ' ' + (r.height || 1));
@@ -118,10 +181,26 @@
     return c;
   }
 
+  /** Outline (oriented bounding box) of the element under the editor cursor. */
+  function drawElementBox(id) {
+    if (id == null || id < 0) return;
+    const el = elElFor(id);
+    if (!el || !el.getBBox || !el.getCTM) return;
+    if (el.tagName && el.tagName.toLowerCase() === 'svg') return; // skip the root
+    let bb, m;
+    try { bb = el.getBBox(); m = el.getCTM(); } catch (e) { return; }
+    if (!m || (!bb.width && !bb.height)) return;
+    const cs = [[bb.x, bb.y], [bb.x + bb.width, bb.y], [bb.x + bb.width, bb.y + bb.height], [bb.x, bb.y + bb.height]]
+      .map((c) => toRoot(m, c[0], c[1]));
+    node('polygon', { points: cs.map((p) => p.x + ',' + p.y).join(' '), class: 'o-elbox' }, content);
+  }
+
   function draw() {
     positionOverlay();
     clearContent();
     const d = lastOverlay;
+
+    if (d) drawElementBox(d.elementId);
 
     // local -> root (overlay pixel) matrix of the active path.
     let m = null;
@@ -220,35 +299,38 @@
     const mc = rootCTM();
     if (!ms || !mc) { badge.classList.remove('active'); return; }
 
-    const rtR = rulerTop.getBoundingClientRect();
-    const rlR = rulerLeft.getBoundingClientRect();
-    const tw = rtR.width, th = rtR.height, lw = rlR.width, lh = rlR.height;
-    rulerTop.setAttribute('width', String(tw));
-    rulerTop.setAttribute('height', String(th));
-    rulerLeft.setAttribute('width', String(lw));
-    rulerLeft.setAttribute('height', String(lh));
-
     const vb = rootViewBox();
-
-    // viewBox value -> pixel offset within each ruler / the overlay
-    const offX = (vx) => transformPoint(ms, vx, vb.y).x - rtR.left;
-    const offY = (vy) => transformPoint(ms, vb.x, vy).y - rlR.top;
     const ovX = (vx) => transformPoint(mc, vx, 0).x;
     const ovY = (vy) => transformPoint(mc, 0, vy).y;
     const ovRect = overlay.getBoundingClientRect();
     const ovH = ovRect.height || 1;
     const ovW = ovRect.width || 1;
 
-    // --- scale ticks ---
-    drawScaleX(tw, th, vb, niceStep(64 / (Math.abs(ms.a) || 1)), offX);
-    drawScaleY(lw, lh, vb, niceStep(64 / (Math.abs(ms.d) || 1)), offY);
+    // ruler offsets / dimensions (only used when the grid/rulers are shown)
+    const rtR = rulerTop.getBoundingClientRect();
+    const rlR = rulerLeft.getBoundingClientRect();
+    const th = rtR.height, lw = rlR.width;
+    const offX = (vx) => transformPoint(ms, vx, vb.y).x - rtR.left;
+    const offY = (vy) => transformPoint(ms, vb.x, vy).y - rlR.top;
+
+    if (gridOn) {
+      rulerTop.setAttribute('width', String(rtR.width));
+      rulerTop.setAttribute('height', String(rtR.height));
+      rulerLeft.setAttribute('width', String(rlR.width));
+      rulerLeft.setAttribute('height', String(rlR.height));
+      const stepX = niceStep(64 / (Math.abs(ms.a) || 1));
+      const stepY = niceStep(64 / (Math.abs(ms.d) || 1));
+      drawScaleX(rtR.width, rtR.height, vb, stepX, offX);
+      drawScaleY(rlR.width, rlR.height, vb, stepY, offY);
+      drawGridLines(vb, stepX, stepY, ovX, ovY, ovW, ovH);
+    }
 
     const ov = lastOverlay;
     if (ov && ov.pathIndex >= 0) {
       const m = localToViewBox(ov.pathIndex);
       const pe = pathElFor(ov.pathIndex);
 
-      // --- path bounding box ---
+      // --- path bounding box (guide rect always; ruler brackets with the grid) ---
       if (m && pe && pe.getBBox) {
         try {
           const bb = pe.getBBox();
@@ -257,11 +339,12 @@
           const xs = cs.map((c) => c.x), ys = cs.map((c) => c.y);
           const bx0 = Math.min.apply(null, xs), bx1 = Math.max.apply(null, xs);
           const by0 = Math.min.apply(null, ys), by1 = Math.max.apply(null, ys);
-          // Math.min/abs so the rect stays valid even under a flipped/negative-scale root CTM.
           const gx = Math.min(ovX(bx0), ovX(bx1)), gy = Math.min(ovY(by0), ovY(by1));
           node('rect', { x: gx, y: gy, width: Math.abs(ovX(bx1) - ovX(bx0)), height: Math.abs(ovY(by1) - ovY(by0)), class: 'g-bbox' }, guides);
-          bracketX(offX(bx0), offX(bx1), fmtCoord(bx0), fmtCoord(bx1));
-          bracketY(offY(by0), offY(by1), fmtCoord(by0), fmtCoord(by1));
+          if (gridOn) {
+            bracketX(offX(bx0), offX(bx1), fmtCoord(bx0), fmtCoord(bx1));
+            bracketY(offY(by0), offY(by1), fmtCoord(by0), fmtCoord(by1));
+          }
         } catch (e) { /* getBBox can throw pre-layout */ }
       }
 
@@ -272,22 +355,37 @@
         const oxp = ovX(e.x), oyp = ovY(e.y);
         node('line', { x1: oxp, y1: oyp, x2: oxp, y2: 0, class: 'g-seg' }, guides);
         node('line', { x1: oxp, y1: oyp, x2: 0, y2: oyp, class: 'g-seg' }, guides);
-        caretX(th, offX(e.x), fmtCoord(e.x), 'seg');
-        caretY(lw, offY(e.y), fmtCoord(e.y), 'seg');
+        if (gridOn) {
+          caretX(th, offX(e.x), fmtCoord(e.x), 'seg');
+          caretY(lw, offY(e.y), fmtCoord(e.y), 'seg');
+        }
       }
     }
 
-    // --- mouse ---
+    // --- mouse (crosshair + badge always; ruler carets with the grid) ---
     if (mouseVB) {
       const oxp = ovX(mouseVB.x), oyp = ovY(mouseVB.y);
       node('line', { x1: oxp, y1: 0, x2: oxp, y2: ovH, class: 'g-mouse' }, guides);
       node('line', { x1: 0, y1: oyp, x2: ovW, y2: oyp, class: 'g-mouse' }, guides);
-      caretX(th, offX(mouseVB.x), fmtCoord(mouseVB.x), 'mouse');
-      caretY(lw, offY(mouseVB.y), fmtCoord(mouseVB.y), 'mouse');
+      if (gridOn) {
+        caretX(th, offX(mouseVB.x), fmtCoord(mouseVB.x), 'mouse');
+        caretY(lw, offY(mouseVB.y), fmtCoord(mouseVB.y), 'mouse');
+      }
       badge.textContent = 'x ' + fmtCoord(mouseVB.x) + '   y ' + fmtCoord(mouseVB.y);
       badge.classList.add('active');
     } else {
       badge.classList.remove('active');
+    }
+  }
+
+  function drawGridLines(vb, stepX, stepY, ovX, ovY, ovW, ovH) {
+    for (let v = Math.ceil(vb.x / stepX) * stepX; v <= vb.x + vb.w + 1e-6; v += stepX) {
+      const x = ovX(v);
+      node('line', { x1: x, y1: 0, x2: x, y2: ovH, class: 'g-grid' }, guides);
+    }
+    for (let v = Math.ceil(vb.y / stepY) * stepY; v <= vb.y + vb.h + 1e-6; v += stepY) {
+      const y = ovY(v);
+      node('line', { x1: 0, y1: y, x2: ovW, y2: y, class: 'g-grid' }, guides);
     }
   }
 
@@ -411,6 +509,14 @@
     const m = e.data;
     if (!m) return;
     if (m.type === 'render') {
+      // Seed toolbar defaults from extension config the first time only; after
+      // that the persisted (user-chosen) toolbar state wins.
+      if (m.config && !seeded) {
+        background = m.config.background || background;
+        gridOn = m.config.showGrid !== false;
+        seeded = true;
+        persist();
+      }
       container.innerHTML = m.svg || '';
       const el = svgEl();
       if (el) {
@@ -418,16 +524,15 @@
         if (el.getAttribute('viewBox')) {
           el.removeAttribute('width');
           el.removeAttribute('height');
-          el.style.width = '100%';
           el.style.height = 'auto';
-          el.style.maxHeight = '78vh';
         } else {
           el.style.maxWidth = '100%';
-          el.style.maxHeight = '78vh';
         }
       }
+      applyBackground();
+      applyGrid();
       ctmRetries = 0;
-      requestDraw();
+      applyZoom(); // sets the SVG width for the current zoom and requests a draw
     } else if (m.type === 'overlay') {
       lastOverlay = m.data;
       ctmRetries = 0;
@@ -440,7 +545,23 @@
     }
   });
 
-  window.addEventListener('resize', requestDraw);
+  // Recompute the zoom width on any layout change (a VS Code panel resize may
+  // not fire a window 'resize' event, so observe #stage directly).
+  window.addEventListener('resize', applyZoom);
+  if (typeof ResizeObserver !== 'undefined') {
+    let roScheduled = false;
+    new ResizeObserver(() => {
+      if (roScheduled) return;
+      roScheduled = true;
+      requestAnimationFrame(() => { roScheduled = false; applyZoom(); });
+    }).observe(stage);
+  }
+  stage.addEventListener('scroll', requestRulers); // rulers are fixed; ticks follow the scrolled content
+
+  // Apply persisted toolbar state on load.
+  applyBackground();
+  applyGrid();
+  if (zoomLabel) zoomLabel.textContent = Math.round(zoom * 100) + '%';
 
   vscode.postMessage({ type: 'ready' });
 })();

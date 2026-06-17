@@ -1,6 +1,7 @@
 // Locating <path> elements and the enclosing <svg> within document text.
 
 import { parsePath, ParsedPath } from './pathParser';
+import { parseXml, getAttr, descendantElements } from './svgTree';
 
 export interface PathInstance {
   /** Offset of the first character of the `d` attribute value (inside the quotes). */
@@ -68,46 +69,52 @@ export function extractSvg(text: string): SvgRegion | null {
 }
 
 /**
- * Tag each `<path>` *that carries a `d` attribute* with `data-sph-idx="N"` so
- * the webview can map an overlay back to the exact rendered element and read
- * its CTM. The population and order must match `findPaths` over the same range
- * exactly — so this scans tags the same way and applies the same `d` filter
- * (a decorative `<path>` without `d` is skipped, not numbered).
+ * Tag the rendered SVG so the webview can map back to elements:
+ *   - every element gets `data-sph-el="N"` (document order) for element highlight;
+ *   - every `<path>` with a `d` attribute additionally gets `data-sph-idx="K"`
+ *     (path order) — matching `findPaths`/`svgPaths` order — for the path overlay.
  */
-export function tagPaths(svg: string): string {
-  let out = '';
-  let i = 0;
-  let n = 0;
-  for (;;) {
-    const idx = svg.indexOf('<path', i);
-    if (idx < 0) { out += svg.slice(i); break; }
+export function tagSvg(svg: string): string {
+  const els = descendantElements(parseXml(svg));
+  let pathOrd = 0;
+  const inserts: { pos: number; text: string }[] = [];
+  els.forEach((el, i) => {
+    const tag = el.tag || '';
+    let attrs = ` data-sph-el="${i}"`;
+    const d = getAttr(el, 'd');
+    if (tag === 'path' && d && d.hasValue) attrs += ` data-sph-idx="${pathOrd++}"`;
+    inserts.push({ pos: el.start + 1 + tag.length, text: attrs });
+  });
+  inserts.sort((a, b) => b.pos - a.pos); // apply end-to-start to keep offsets valid
+  let out = svg;
+  for (const ins of inserts) out = out.slice(0, ins.pos) + ins.text + out.slice(ins.pos);
+  return out;
+}
 
-    const after = svg[idx + 5];
-    if (after !== undefined && !/[\s/>]/.test(after)) {
-      out += svg.slice(i, idx + 5);
-      i = idx + 5;
-      continue;
-    }
+/** Document-order index (data-sph-el) of the deepest element containing `off`, or -1. */
+export function elementIdAt(svg: string, off: number): number {
+  const els = descendantElements(parseXml(svg));
+  let best = -1;
+  els.forEach((el, i) => {
+    if (el.start <= off && off <= el.end) best = i; // preorder: last containing == deepest
+  });
+  return best;
+}
 
-    let j = idx + 5;
-    let quote: string | null = null;
-    while (j < svg.length) {
-      const c = svg[j];
-      if (quote) {
-        if (c === quote) quote = null;
-      } else if (c === '"' || c === "'") {
-        quote = c;
-      } else if (c === '>') {
-        break;
-      }
-      j++;
-    }
-
-    const tag = svg.slice(idx, j);
-    out += svg.slice(i, idx + 5);            // text up to and including "<path"
-    if (D_ATTR.test(tag)) out += ` data-sph-idx="${n++}"`;
-    out += svg.slice(idx + 5, j);            // the rest of the start tag
-    i = j;
+/**
+ * Path elements (with a `d` attribute) inside the SVG region, in the SAME order
+ * tagSvg assigns `data-sph-idx`. Parser-based (skips <path> tokens inside
+ * comments/CDATA), so the overlay's path index always matches the rendered DOM.
+ */
+export function svgPaths(text: string): PathInstance[] {
+  const region = extractSvg(text);
+  if (!region) return findPaths(text);
+  const out: PathInstance[] = [];
+  for (const el of descendantElements(parseXml(region.svg))) {
+    if (el.tag !== 'path') continue;
+    const a = getAttr(el, 'd');
+    if (!a || !a.hasValue) continue;
+    out.push({ dStart: region.start + a.valueStart, dText: a.value, parsed: parsePath(a.value) });
   }
   return out;
 }

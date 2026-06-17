@@ -35,6 +35,7 @@ export interface SNode {
 }
 
 const WS = /\s/;
+const RAW_TEXT = new Set(['style', 'script']);
 
 function parseStartTag(text: string, start: number) {
   let i = start + 1;
@@ -162,8 +163,27 @@ export function parseXml(text: string): SNode {
           selfClosing: st.selfClosing, closed: st.selfClosing,
         };
         add(node);
-        if (!st.selfClosing) stack.push(node);
-        i = st.tagEnd;
+        if (!st.selfClosing && RAW_TEXT.has(st.tag)) {
+          // <style>/<script> are raw-text: consume verbatim to the matching
+          // close tag so markup-like text inside isn't parsed as elements.
+          const re = new RegExp('</' + st.tag + '\\s*>', 'i');
+          re.lastIndex = 0;
+          const m = re.exec(text.slice(st.tagEnd));
+          const closeStart = m ? st.tagEnd + m.index : text.length;
+          const e = m ? st.tagEnd + m.index + m[0].length : text.length;
+          if (closeStart > st.tagEnd) {
+            const t = leaf('text', st.tagEnd, closeStart);
+            t.parent = node;
+            node.children.push(t);
+          }
+          node.innerEnd = closeStart;
+          node.end = e;
+          node.closed = !!m;
+          i = e;
+        } else {
+          if (!st.selfClosing) stack.push(node);
+          i = st.tagEnd;
+        }
       }
     } else {
       const lt = text.indexOf('<', i);
