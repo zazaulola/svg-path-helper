@@ -32,6 +32,11 @@ a **grid** toggle. Driven by the cursor position, the preview overlays:
   (orange, with dashed handles);
 - the **selected point** (yellow, enlarged) when the cursor is on a coordinate.
 
+**Click to select:** click an object in the preview to move the editor cursor
+to its tag; right-click to get a menu of the whole stack of objects under the
+pointer (hover an entry to highlight it), so you can reach an element hidden
+behind others.
+
 The overlay is drawn through each path element's live CTM, so it tracks the
 geometry **through parent `<g transform>`s and the path's own transform** —
 translate, rotate, scale, skew, nested, all of it:

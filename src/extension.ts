@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Segment, parsePath } from './pathParser';
-import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths, PathInstance } from './svgDocument';
+import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths, elementTagPos, PathInstance } from './svgDocument';
 import { convertD, fullAbsoluteD, segmentOverlayD, formatNumber } from './pathConverter';
 import { buildTransformEdits, cursorOnTransform, OpKind } from './transformOps';
 
@@ -404,7 +404,10 @@ function updatePreview(render: boolean): void {
   const off = doc.offsetAt(editor.selection.active);
 
   if (render) {
-    panel.webview.postMessage({ type: 'render', svg: region ? tagSvg(region.svg) : '', config: previewConfig() });
+    panel.webview.postMessage({
+      type: 'render', svg: region ? tagSvg(region.svg) : '', config: previewConfig(),
+      uri: doc.uri.toString(), version: doc.version,
+    });
   }
 
   const paths = svgPaths(text);
@@ -466,12 +469,16 @@ function spliceDrag(ctx: DragCtx, x: number, y: number, text: string): { baseD: 
   return { baseD, newD };
 }
 
+/** Resolve a visible editor by URI, only if its document is still at `version`. */
+function editorForDoc(uri: string, version: number): vscode.TextEditor | undefined {
+  const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri);
+  if (!editor || editor.document.version !== version) return undefined; // stale — bail
+  return editor;
+}
+
 /** Resolve the editor a drag belongs to, only if the document is unchanged since capture. */
 function editorForDrag(ctx: DragCtx): vscode.TextEditor | undefined {
-  const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === ctx.uri);
-  if (!editor) return undefined;
-  if (editor.document.version !== ctx.version) return undefined; // stale offsets — bail
-  return editor;
+  return editorForDoc(ctx.uri, ctx.version);
 }
 
 function handleWebviewMessage(msg: any): void {
@@ -479,6 +486,22 @@ function handleWebviewMessage(msg: any): void {
   if (msg.type === 'ready') { updatePreview(true); return; }
   if (msg.type === 'dragMove') { onDragMove(msg.ctx as DragCtx, msg.x, msg.y); return; }
   if (msg.type === 'dragEnd') { void onDragEnd(msg.ctx as DragCtx, msg.x, msg.y); return; }
+  if (msg.type === 'selectElement') { selectElementInEditor(msg.id, msg.uri, msg.version); return; }
+}
+
+/** Move the editor cursor to the start tag of the element with data-sph-el `id`. */
+function selectElementInEditor(id: number, uri: string, version: number): void {
+  if (typeof id !== 'number' || id < 0) return;
+  const editor = editorForDoc(uri, version); // bail if the previewed text has since changed
+  if (!editor) return;
+  const doc = editor.document;
+  const pos = elementTagPos(doc.getText(), id);
+  if (!pos) return;
+  const start = doc.positionAt(pos.start + 1); // just after '<'
+  const end = doc.positionAt(pos.start + 1 + pos.tag.length);
+  const range = new vscode.Range(start, end);
+  editor.selection = new vscode.Selection(start, end);
+  editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
 
 function onDragMove(ctx: DragCtx, x: number, y: number): void {

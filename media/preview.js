@@ -34,6 +34,13 @@
 
   /** @type {any} */ let lastOverlay = null;
   /** @type {{x:number,y:number}|null} */ let mouseVB = null;
+  /** element id hovered in the stack menu (overrides the cursor element box) */
+  let hoverElementId = null;
+  // Identity of the document the current DOM was rendered from (data-sph-el ids
+  // are only valid against this exact text), echoed back with a selection.
+  let renderUri = '';
+  let renderVersion = -1;
+  let didDrag = false; // a point drag occurred — suppress the synthesized click
 
   // Toolbar state (persisted across reloads).
   const saved = vscode.getState() || {};
@@ -200,7 +207,7 @@
     clearContent();
     const d = lastOverlay;
 
-    if (d) drawElementBox(d.elementId);
+    drawElementBox(hoverElementId != null ? hoverElementId : (d ? d.elementId : -1));
 
     // local -> root (overlay pixel) matrix of the active path.
     let m = null;
@@ -468,6 +475,7 @@
     e.preventDefault();
     e.stopPropagation();
     dragging = ctx;
+    didDrag = true; // a point interaction — its terminal click is not a select
     dragPointerId = e.pointerId;
     surface.style.pointerEvents = 'all';
     try { surface.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
@@ -503,12 +511,97 @@
   surface.addEventListener('pointerup', (e) => endDrag(e, true));
   surface.addEventListener('pointercancel', (e) => endDrag(e, false));
 
+  // --- element selection (click -> jump to tag; right-click -> stack menu) ---
+
+  /** Post a selection only if the DOM still matches the document it was rendered from. */
+  function postSelect(id) {
+    vscode.postMessage({ type: 'selectElement', id: id, uri: renderUri, version: renderVersion });
+  }
+
+  /** Tagged elements under the point, topmost first (z-order, painted hit). */
+  function hitStack(clientX, clientY) {
+    const ids = [];
+    const root = svgEl();
+    const els = (document.elementsFromPoint && document.elementsFromPoint(clientX, clientY)) || [];
+    for (const el of els) {
+      if (!container.contains(el) || el === root) continue; // skip overlay/menu and the root <svg>
+      const a = el.getAttribute && el.getAttribute('data-sph-el');
+      if (a != null) { const id = +a; if (ids.indexOf(id) < 0) ids.push(id); }
+    }
+    return ids;
+  }
+
+  function elLabel(id) {
+    const el = elElFor(id);
+    if (!el) return '#' + id;
+    let s = '<' + (el.tagName || '?').toLowerCase() + '>';
+    const eid = el.getAttribute('id'); if (eid) s += ' #' + eid;
+    const cls = el.getAttribute('class'); if (cls && cls.trim()) s += ' .' + cls.trim().split(/\s+/)[0];
+    return s;
+  }
+
+  // Reset the drag flag at the very start of each interaction (capture phase,
+  // before startDrag), so a stale flag can never swallow a later real click.
+  stage.addEventListener('pointerdown', () => { didDrag = false; }, true);
+
+  stage.addEventListener('click', (e) => {
+    if (e.button !== 0) return;
+    if (didDrag) { didDrag = false; return; } // a point drag just ended — not a select
+    // ignore clicks that land on a draggable point / drag surface (in the overlay)
+    if (e.target && e.target.closest && e.target.closest('#overlay')) return;
+    const ids = hitStack(e.clientX, e.clientY);
+    if (ids.length) postSelect(ids[0]);
+  });
+
+  stage.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    showStackMenu(e.clientX, e.clientY, hitStack(e.clientX, e.clientY));
+  });
+
+  let menuEl = null;
+  function closeMenu() {
+    if (menuEl) { menuEl.remove(); menuEl = null; }
+    if (hoverElementId != null) { hoverElementId = null; requestDraw(); }
+    window.removeEventListener('pointerdown', onDocDown, true);
+    window.removeEventListener('keydown', onMenuKey, true);
+    stage.removeEventListener('scroll', closeMenu);
+  }
+  function onDocDown(e) { if (menuEl && !menuEl.contains(e.target)) closeMenu(); }
+  function onMenuKey(e) { if (e.key === 'Escape') closeMenu(); }
+
+  function showStackMenu(x, y, ids) {
+    closeMenu();
+    if (!ids.length) return;
+    menuEl = document.createElement('div');
+    menuEl.id = 'sph-menu';
+    ids.forEach((id) => {
+      const item = document.createElement('div');
+      item.className = 'sph-menu-item';
+      item.textContent = elLabel(id);
+      item.addEventListener('click', () => { postSelect(id); closeMenu(); });
+      item.addEventListener('pointerenter', () => { hoverElementId = id; requestDraw(); });
+      menuEl.appendChild(item);
+    });
+    document.body.appendChild(menuEl);
+    const mw = menuEl.offsetWidth, mh = menuEl.offsetHeight;
+    menuEl.style.left = Math.max(2, Math.min(x, window.innerWidth - mw - 4)) + 'px';
+    menuEl.style.top = Math.max(2, Math.min(y, window.innerHeight - mh - 4)) + 'px';
+    setTimeout(() => {
+      window.addEventListener('pointerdown', onDocDown, true);
+      window.addEventListener('keydown', onMenuKey, true);
+      stage.addEventListener('scroll', closeMenu);
+    }, 0);
+  }
+
   // --- messages -------------------------------------------------------------
 
   window.addEventListener('message', (e) => {
     const m = e.data;
     if (!m) return;
     if (m.type === 'render') {
+      closeMenu(); // a rebuilt DOM invalidates data-sph-el ids in any open menu
+      renderUri = m.uri || '';
+      renderVersion = typeof m.version === 'number' ? m.version : -1;
       // Seed toolbar defaults from extension config the first time only; after
       // that the persisted (user-chosen) toolbar state wins.
       if (m.config && !seeded) {

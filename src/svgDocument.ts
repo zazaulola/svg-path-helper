@@ -101,6 +101,15 @@ export function elementIdAt(svg: string, off: number): number {
   return best;
 }
 
+/** Document offset of the start tag (and tag name) for the element with data-sph-el `id`. */
+export function elementTagPos(text: string, id: number): { start: number; tag: string } | null {
+  const region = extractSvg(text);
+  if (!region) return null;
+  const el = descendantElements(parseXml(region.svg))[id];
+  if (!el) return null;
+  return { start: region.start + el.start, tag: el.tag || '' };
+}
+
 /**
  * Path elements (with a `d` attribute) inside the SVG region, in the SAME order
  * tagSvg assigns `data-sph-idx`. Parser-based (skips <path> tokens inside

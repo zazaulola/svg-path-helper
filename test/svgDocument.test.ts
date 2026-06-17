@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths } from '../src/svgDocument';
+import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths, elementTagPos } from '../src/svgDocument';
 
 describe('svgDocument — tagSvg', () => {
   test('tags every element with data-sph-el and d-bearing paths with data-sph-idx', () => {
@@ -32,6 +32,15 @@ describe('svgDocument — elementIdAt', () => {
     assert.equal(elementIdAt(svg, svg.indexOf('d="M0 0"') + 1), 3); // inside the path
     assert.equal(elementIdAt(svg, svg.indexOf('<rect') + 2), 1);    // inside the rect tag
     assert.equal(elementIdAt(svg, 1), 0);                            // only the <svg> tag
+  });
+
+  test('elementTagPos returns the start-tag offset and tag for an id', () => {
+    const doc = 'xx\n<svg><rect/><g><path d="M0 0"/></g></svg>';
+    const p = elementTagPos(doc, 3); // the <path>
+    assert.equal(p!.tag, 'path');
+    assert.equal(doc.slice(p!.start, p!.start + 5), '<path');
+    assert.equal(elementTagPos(doc, 1)!.tag, 'rect');
+    assert.equal(elementTagPos(doc, 99), null);
   });
 
   test('data-sph-el id from tagSvg matches elementIdAt', () => {
