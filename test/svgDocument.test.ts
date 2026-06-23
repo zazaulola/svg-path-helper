@@ -71,6 +71,42 @@ describe('svgDocument — svgPaths matches tagSvg (review regressions)', () => {
   });
 });
 
+describe('svgDocument — multiline d attributes', () => {
+  const multi = [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">',
+    '  <path id="t"',
+    '        d="M 39 10',
+    '           a 24 24 0 1 1 -14 0',
+    '           v 8',
+    '           a 16 16 0 1 0 12 0 z"/>',
+    '</svg>',
+  ].join('\n');
+
+  test('findPaths captures a multiline d and parses it', () => {
+    const fp = findPaths(multi);
+    assert.equal(fp.length, 1);
+    assert.deepEqual(fp[0].parsed.segments.map((s) => s.upper), ['M', 'A', 'V', 'A', 'Z']);
+    assert.equal(multi.slice(fp[0].dStart, fp[0].dStart + 7), 'M 39 10'); // dStart points at the value
+  });
+
+  test('svgPaths order/offsets match findPaths for multiline', () => {
+    assert.deepEqual(svgPaths(multi).map((p) => p.dStart), findPaths(multi).map((p) => p.dStart));
+  });
+
+  test('single-quoted multiline d', () => {
+    const svg = "<svg viewBox='0 0 10 10'><path d='M0 0\n L5 5\n Z'/></svg>";
+    assert.deepEqual(findPaths(svg)[0].parsed.segments.map((s) => s.upper), ['M', 'L', 'Z']);
+  });
+
+  test('point source ranges map to clean coordinate substrings across lines', () => {
+    const svg = '<svg viewBox="0 0 200 200">\n  <path d="M 40 100\n           C 40 40 160 40 160 100\n           Z"/>\n</svg>';
+    const p = findPaths(svg)[0];
+    const c = p.parsed.segments[1];
+    const ep = c.points.find((q) => q.role === 'endpoint')!;
+    assert.equal(svg.slice(p.dStart + ep.start, p.dStart + ep.end), '160 100');
+  });
+});
+
 describe('svgDocument — extractSvg / findPaths still work', () => {
   test('extractSvg returns region + offset', () => {
     const r = extractSvg('x\n<svg><path d="M0 0"/></svg>');

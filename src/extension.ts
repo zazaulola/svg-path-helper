@@ -217,6 +217,26 @@ function rng(doc: vscode.TextDocument, a: number, b: number): vscode.Range {
   return new vscode.Range(doc.positionAt(a), doc.positionAt(b));
 }
 
+/**
+ * Push decoration range(s) for [a,b). A range that crosses line breaks (a
+ * multi-line `d`) is split per line with leading/trailing whitespace trimmed, so
+ * the highlight covers only the actual tokens — never a newline or indentation.
+ */
+function pushClipped(out: vscode.Range[], doc: vscode.TextDocument, a: number, b: number): void {
+  if (b <= a) return;
+  const sp = doc.positionAt(a);
+  const ep = doc.positionAt(b);
+  if (sp.line === ep.line) { out.push(new vscode.Range(sp, ep)); return; }
+  for (let line = sp.line; line <= ep.line; line++) {
+    const t = doc.lineAt(line).text;
+    let lo = line === sp.line ? sp.character : 0;
+    let hi = line === ep.line ? ep.character : t.length;
+    while (lo < hi && /\s/.test(t[lo])) lo++;
+    while (hi > lo && /\s/.test(t[hi - 1])) hi--;
+    if (hi > lo) out.push(new vscode.Range(new vscode.Position(line, lo), new vscode.Position(line, hi)));
+  }
+}
+
 function findSegAt(segs: Segment[], rel: number): Segment | undefined {
   if (rel < 0) return undefined;
   for (const s of segs) if (rel >= s.start && rel <= s.end) return s;
@@ -260,8 +280,7 @@ function updateDecorations(editor?: vscode.TextEditor): void {
       }
       for (const pt of seg.points) {
         if (!pt.hasSource) continue;
-        const r = rng(doc, p.dStart + pt.start, p.dStart + pt.end);
-        (pt.role === 'endpoint' ? endR : ctlR).push(r);
+        pushClipped(pt.role === 'endpoint' ? endR : ctlR, doc, p.dStart + pt.start, p.dStart + pt.end);
       }
     }
 
@@ -270,9 +289,9 @@ function updateDecorations(editor?: vscode.TextEditor): void {
       if (rel < 0 || rel > p.dText.length) continue;
       const seg = findSegAt(p.parsed.segments, rel);
       if (!seg) continue;
-      segR.push(rng(doc, p.dStart + seg.start, p.dStart + seg.end));
+      pushClipped(segR, doc, p.dStart + seg.start, p.dStart + seg.end);
       const pt = seg.points.find((pp) => pp.hasSource && rel >= pp.start && rel <= pp.end);
-      if (pt) ptR.push(rng(doc, p.dStart + pt.start, p.dStart + pt.end));
+      if (pt) pushClipped(ptR, doc, p.dStart + pt.start, p.dStart + pt.end);
     }
   }
 
