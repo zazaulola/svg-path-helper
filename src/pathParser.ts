@@ -114,6 +114,51 @@ function readFlag(s: string, i: number): { raw: string; end: number } | null {
   return null;
 }
 
+/**
+ * Tokenize a whitespace/comma/sign-separated list of numbers per the SVG BNF.
+ * Unlike a naive `split(/[\s,]+/)`, this honours the sign acting as a separator
+ * ("5-5" -> [5, -5]), packed decimals (".5.5" -> [0.5, 0.5]), exponents and the
+ * Unicode minus — matching how browsers parse `points` and transform arguments.
+ * Parsing stops at the first character that cannot start a number (browser-like
+ * "use the valid prefix" recovery for `points`).
+ */
+export function tokenizeNumbers(s: string): number[] {
+  if (s.indexOf('−') >= 0) s = s.replace(/−/g, '-');
+  const out: number[] = [];
+  const n = s.length;
+  let i = 0;
+  while (i < n) {
+    while (i < n && isWsSep(s[i])) i++;
+    if (i >= n) break;
+    const r = readNumber(s, i);
+    if (!r) break;
+    out.push(parseFloat(r.raw));
+    i = r.end;
+  }
+  return out;
+}
+
+/**
+ * Strict variant of {@link tokenizeNumbers}: returns null if any non-separator
+ * character is not part of a number. Used for transform-function arguments,
+ * where a stray token must invalidate the whole function rather than be ignored.
+ */
+export function parseNumberListStrict(s: string): number[] | null {
+  if (s.indexOf('−') >= 0) s = s.replace(/−/g, '-');
+  const out: number[] = [];
+  const n = s.length;
+  let i = 0;
+  while (i < n) {
+    while (i < n && isWsSep(s[i])) i++;
+    if (i >= n) break;
+    const r = readNumber(s, i);
+    if (!r) return null;
+    out.push(parseFloat(r.raw));
+    i = r.end;
+  }
+  return out;
+}
+
 interface State {
   cx: number;
   cy: number;

@@ -1,7 +1,7 @@
 // Baking an affine matrix into path geometry, and converting SVG basic shapes
 // to <path> data.
 
-import { parsePath } from './pathParser';
+import { parsePath, tokenizeNumbers } from './pathParser';
 import { formatNumber } from './pathConverter';
 import { Matrix, apply, det } from './matrix';
 
@@ -119,7 +119,9 @@ function hasProp(get: GetProp, name: string): boolean {
 
 function parsePoints(s: string | undefined): number[] {
   if (!s) return [];
-  return s.split(/[\s,]+/).filter((t) => t.length > 0).map(Number).filter((n) => !Number.isNaN(n));
+  // `points` coordinates follow the same number grammar as path data: the sign
+  // doubles as a separator ("5-5") and decimals/exponents may be packed.
+  return tokenizeNumbers(s);
 }
 
 /**

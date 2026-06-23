@@ -4,6 +4,7 @@
 // SVG `matrix(a b c d e f)` convention.
 
 import { formatNumber } from './pathConverter';
+import { parseNumberListStrict } from './pathParser';
 
 export interface Matrix { a: number; b: number; c: number; d: number; e: number; f: number; }
 
@@ -79,8 +80,10 @@ export function parseTransformList(s: string): Matrix {
   let match: RegExpExecArray | null;
   TRANSFORM_FN.lastIndex = 0;
   while ((match = TRANSFORM_FN.exec(s)) !== null) {
-    const args = match[2].split(/[\s,]+/).filter((t) => t.length > 0).map(Number);
-    if (args.some((n) => Number.isNaN(n))) continue;
+    // Sign-as-separator and packed numbers are valid here too ("translate(5-5)");
+    // a stray non-number token invalidates the function (parseNumberListStrict -> null).
+    const args = parseNumberListStrict(match[2]);
+    if (!args) continue;
     if (!ARG_COUNTS[match[1]].includes(args.length)) continue;
     m = multiply(m, fnToMatrix(match[1], args));
   }

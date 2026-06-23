@@ -38,6 +38,21 @@ describe('svgGeometry — basic shapes to path', () => {
     assert.equal(shapeToPathData('polygon', getter({ points: '0,0 10,0 10,10' }), 3), 'M0 0L10 0L10 10Z');
     assert.equal(shapeToPathData('polyline', getter({ points: '0,0 10,0' }), 3), 'M0 0L10 0');
   });
+  // `points` uses the same number grammar as path data: the sign separates
+  // coordinates ("5-5") and decimals pack (".5.5"). The naive split used to drop
+  // these as NaN. Coordinates verified against the browser's polygon.points.
+  test('points with packed / sign-separated numbers (BNF conformance)', () => {
+    // "5-5-5-4" -> (5,-5),(-5,-4)  ;  "10.5.5" -> (10.5, 0.5)
+    assert.equal(
+      shapeToPathData('polygon', getter({ points: '5-5-5-4 10.5.5' }), 3),
+      'M5 -5L-5 -4L10.5 0.5Z',
+    );
+    // mixed comma + sign-as-separator, like Illustrator/Figma exports
+    assert.equal(
+      shapeToPathData('polyline', getter({ points: '0,0 5-5-5-4' }), 3),
+      'M0 0L5 -5L-5 -4',
+    );
+  });
   test('circle and ellipse close', () => {
     assert.ok(shapeToPathData('circle', getter({ cx: '5', cy: '5', r: '4' }), 3)?.endsWith('Z'));
     assert.ok(shapeToPathData('ellipse', getter({ cx: '5', cy: '5', rx: '4', ry: '2' }), 3)?.endsWith('Z'));

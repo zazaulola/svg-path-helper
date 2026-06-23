@@ -43,6 +43,17 @@ describe('matrix', () => {
     assert.equal(matrixToString(parseTransformList('matrix(a b c d e f)'), 3), 'matrix(1 0 0 1 0 0)');
   });
 
+  // Per the SVG BNF, the sign doubles as a separator and numbers may be packed
+  // with no whitespace — browsers accept "translate(5-5)". Verified against the
+  // browser's transform.baseVal.consolidate().
+  test('packed / sign-separated transform arguments (BNF conformance)', () => {
+    assert.equal(matrixToString(parseTransformList('translate(5-5)'), 3), 'matrix(1 0 0 1 5 -5)');
+    assert.equal(matrixToString(parseTransformList('matrix(1 0 0 1-5-5)'), 3), 'matrix(1 0 0 1 -5 -5)');
+    assert.equal(matrixToString(parseTransformList('scale(.5e1.5e1)'), 3), 'matrix(5 0 0 5 0 0)');
+    // a stray non-number token still invalidates the function (strict parse)
+    assert.equal(matrixToString(parseTransformList('scale(2,x)'), 3), 'matrix(1 0 0 1 0 0)');
+  });
+
   test('det and isIdentity', () => {
     assert.equal(det(parseTransformList('scale(2 3)')), 6);
     assert.equal(det(parseTransformList('scale(-1 1)')), -1);
