@@ -2,7 +2,7 @@
   "name": "svg-path-helper",
   "displayName": "SVG Path Studio",
   "description": "Live SVG preview with cursor-aware path highlighting and absolute/relative coordinate conversion.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "zazaulola",
   "icon": "media/icon.png",
   "engines": {
