@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths, elementTagPos } from '../src/svgDocument';
+import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths, elementTagRanges } from '../src/svgDocument';
 
 describe('svgDocument — tagSvg', () => {
   test('tags every element with data-sph-el and d-bearing paths with data-sph-idx', () => {
@@ -34,13 +34,41 @@ describe('svgDocument — elementIdAt', () => {
     assert.equal(elementIdAt(svg, 1), 0);                            // only the <svg> tag
   });
 
-  test('elementTagPos returns the start-tag offset and tag for an id', () => {
+  test('elementTagRanges covers the full opening tag and the matching closing tag', () => {
     const doc = 'xx\n<svg><rect/><g><path d="M0 0"/></g></svg>';
-    const p = elementTagPos(doc, 3); // the <path>
-    assert.equal(p!.tag, 'path');
-    assert.equal(doc.slice(p!.start, p!.start + 5), '<path');
-    assert.equal(elementTagPos(doc, 1)!.tag, 'rect');
-    assert.equal(elementTagPos(doc, 99), null);
+    const slice = (r: [number, number]) => doc.slice(r[0], r[1]);
+
+    // <g> (id 2): opening <g> + closing </g>
+    const g = elementTagRanges(doc, 2)!;
+    assert.equal(g.tag, 'g');
+    assert.equal(slice(g.open), '<g>');
+    assert.ok(g.close);
+    assert.equal(slice(g.close!), '</g>');
+
+    // <rect/> (id 1): self-closing — whole start tag, no closing tag
+    const rect = elementTagRanges(doc, 1)!;
+    assert.equal(slice(rect.open), '<rect/>');
+    assert.equal(rect.close, null);
+
+    // <path .../> (id 3): self-closing path with attributes
+    const path = elementTagRanges(doc, 3)!;
+    assert.equal(slice(path.open), '<path d="M0 0"/>');
+    assert.equal(path.close, null);
+
+    assert.equal(elementTagRanges(doc, 99), null);
+  });
+
+  test('elementTagRanges handles a container with text content and multi-line tags', () => {
+    const doc = '<svg>\n  <text x="1">hi</text>\n</svg>';
+    const slice = (r: [number, number]) => doc.slice(r[0], r[1]);
+    const t = elementTagRanges(doc, 1)!; // <text>
+    assert.equal(t.tag, 'text');
+    assert.equal(slice(t.open), '<text x="1">');
+    assert.equal(slice(t.close!), '</text>');
+    // the <svg> root itself (id 0) is closed too
+    const svg = elementTagRanges(doc, 0)!;
+    assert.equal(slice(svg.open), '<svg>');
+    assert.equal(slice(svg.close!), '</svg>');
   });
 
   test('data-sph-el id from tagSvg matches elementIdAt', () => {

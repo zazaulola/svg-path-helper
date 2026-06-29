@@ -34,6 +34,18 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "customEditors": [
+      {
+        "viewType": "svgPathHelper.svgPreview",
+        "displayName": "SVG Path Studio Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.svg"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
     "commands": [
       {
         "command": "svgPathHelper.showPreview",
@@ -127,6 +139,16 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically open the preview beside an .svg file when it becomes active."
+        },
+        "svgPathHelper.lockPreviewGroup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Lock the preview's editor group so files opened from the Explorer go to your code column instead of opening on top of the preview. Disable to leave the group unlocked."
+        },
+        "svgPathHelper.openSvgFilesAsSource": {
+          "type": "boolean",
+          "default": true,
+          "description": "While the preview is open, reopen SVG files chosen from the Explorer as source code instead of VS Code's built-in image preview, so the preview keeps following them. Only the built-in image preview is converted; third-party SVG editors are left alone."
         },
         "svgPathHelper.preview.background": {
           "type": "string",

@@ -101,13 +101,31 @@ export function elementIdAt(svg: string, off: number): number {
   return best;
 }
 
-/** Document offset of the start tag (and tag name) for the element with data-sph-el `id`. */
-export function elementTagPos(text: string, id: number): { start: number; tag: string } | null {
+export interface ElementTagRanges {
+  /** [start, end) document offsets of the opening tag `<tag ...>` (or `<tag .../>`). */
+  open: [number, number];
+  /** [start, end) of the matching closing tag `</tag>`, or null if self-closing / unclosed. */
+  close: [number, number] | null;
+  tag: string;
+}
+
+/**
+ * Document offsets of the opening tag — and the matching closing tag, if the
+ * element has one — for the element with data-sph-el `id`. A self-closing or
+ * never-closed element has `close === null`.
+ */
+export function elementTagRanges(text: string, id: number): ElementTagRanges | null {
   const region = extractSvg(text);
   if (!region) return null;
   const el = descendantElements(parseXml(region.svg))[id];
   if (!el) return null;
-  return { start: region.start + el.start, tag: el.tag || '' };
+  const base = region.start;
+  const open: [number, number] = [base + el.start, base + el.openEnd];
+  const close: [number, number] | null =
+    el.closed && !el.selfClosing && el.innerEnd < el.end
+      ? [base + el.innerEnd, base + el.end]
+      : null;
+  return { open, close, tag: el.tag || '' };
 }
 
 /**

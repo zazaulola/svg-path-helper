@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Segment, parsePath } from './pathParser';
-import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths, elementTagPos, PathInstance } from './svgDocument';
+import { findPaths, extractSvg, tagSvg, elementIdAt, svgPaths, elementTagRanges, PathInstance } from './svgDocument';
 import { convertD, fullAbsoluteD, segmentOverlayD, formatNumber } from './pathConverter';
 import { buildTransformEdits, cursorOnTransform, OpKind } from './transformOps';
 
@@ -81,7 +81,7 @@ export function activate(context: vscode.ExtensionContext): void {
   dec = createDecTypes();
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('svgPathHelper.showPreview', openPreview),
+    vscode.commands.registerCommand('svgPathHelper.showPreview', showPreviewCommand),
     vscode.commands.registerCommand('svgPathHelper.toAbsolute', () => convertSelection('abs')),
     vscode.commands.registerCommand('svgPathHelper.toRelative', () => convertSelection('rel')),
     vscode.commands.registerCommand('svgPathHelper.transformToMatrix', () => runTransformOp('toMatrix')),
@@ -98,6 +98,14 @@ export function activate(context: vscode.ExtensionContext): void {
         updatePreview(true);
       }
     }),
+
+    vscode.window.tabGroups.onDidChangeTabs(onSvgTabOpened),
+
+    vscode.window.registerCustomEditorProvider(
+      'svgPathHelper.svgPreview',
+      new SvgPreviewEditorProvider(),
+      { webviewOptions: { retainContextWhenHidden: true }, supportsMultipleEditorsPerDocument: true },
+    ),
 
     vscode.window.onDidChangeTextEditorSelection((e) => {
       if (e.textEditor === vscode.window.activeTextEditor) scheduleTransformContext();
@@ -145,7 +153,7 @@ function previewConfig(): { background: string; showGrid: boolean } {
 function maybeAutoOpenPreview(editor?: vscode.TextEditor): void {
   if (panel || userClosedPreview || !cfg<boolean>('autoOpenPreview', true)) return;
   const ed = editor ?? vscode.window.activeTextEditor;
-  if (ed && ed.document.fileName.toLowerCase().endsWith('.svg')) openPreview();
+  if (ed && ed.document.fileName.toLowerCase().endsWith('.svg')) void openPreview();
 }
 
 // ---------------------------------------------------------------------------
@@ -306,13 +314,62 @@ function updateDecorations(editor?: vscode.TextEditor): void {
 // Preview webview
 // ---------------------------------------------------------------------------
 
-function openPreview(): void {
+/** URI of the active tab iff it is a *custom* editor (e.g. the built-in Image
+ *  Preview) bound to an `.svg` file — i.e. an SVG opened as something other than
+ *  source text. */
+function activeTabCustomSvgUri(): vscode.Uri | undefined {
+  const input = vscode.window.tabGroups.activeTabGroup?.activeTab?.input;
+  if (input instanceof vscode.TabInputCustom && /\.svg$/i.test(input.uri.path)) return input.uri;
+  return undefined;
+}
+
+/** VS Code's built-in Image Preview custom editor. */
+const IMAGE_PREVIEW_VIEW_TYPE = 'imagePreview.previewEditor';
+
+/**
+ * While our preview is open the user is editing SVGs as source. If they then
+ * pick another SVG in the Explorer it opens in VS Code's built-in image preview,
+ * breaking that flow — so reopen it as source text to keep the same mode. Only
+ * the *built-in* image preview is converted (third-party SVG editors are left
+ * alone), and only while our preview is open; both gated by a setting.
+ */
+function onSvgTabOpened(e: vscode.TabChangeEvent): void {
+  if (!panel || !cfg<boolean>('openSvgFilesAsSource', true)) return;
+  for (const tab of e.opened) {
+    const input = tab.input;
+    if (input instanceof vscode.TabInputCustom
+        && input.viewType === IMAGE_PREVIEW_VIEW_TYPE
+        && /\.svg$/i.test(input.uri.path)) {
+      void vscode.commands.executeCommand('vscode.openWith', input.uri, 'default');
+    }
+  }
+}
+
+/**
+ * Editor-title button handler. If the SVG is currently shown in a non-text
+ * editor (VS Code's Image Preview is a custom editor, so there is no text
+ * editor to drive our preview), reopen this tab as source first — only ever on
+ * this explicit user action — then open our preview beside it.
+ */
+async function showPreviewCommand(): Promise<void> {
+  const uri = activeTabCustomSvgUri();
+  if (uri) {
+    // 'default' is VS Code's built-in text editor; this does not touch the
+    // user's editor associations or default-editor preference.
+    try { await vscode.commands.executeCommand('vscode.openWith', uri, 'default'); }
+    catch { /* fall through and still open the preview */ }
+  }
+  await openPreview();
+}
+
+async function openPreview(): Promise<void> {
   userClosedPreview = false; // explicit open clears the auto-open suppression
   if (panel) {
     panel.reveal(vscode.ViewColumn.Beside, true);
     updatePreview(true);
     return;
   }
+  const source = getTargetEditor(); // the code editor to return focus to after locking
   panel = vscode.window.createWebviewPanel(
     'svgPathHelper.preview',
     'SVG Preview',
@@ -326,6 +383,43 @@ function openPreview(): void {
   panel.webview.html = getHtml(panel.webview);
   panel.onDidDispose(() => { panel = undefined; userClosedPreview = true; }, null, extCtx.subscriptions);
   panel.webview.onDidReceiveMessage(handleWebviewMessage);
+
+  if (cfg<boolean>('lockPreviewGroup', true)) await lockPreviewGroup(source);
+}
+
+/**
+ * Lock the preview's editor group so files opened from the Explorer land in the
+ * code column instead of replacing the preview. The lock command acts on the
+ * active group, so we briefly focus the preview, lock it, then restore focus to
+ * the source editor. A one-time notice tells the user what happened.
+ */
+async function lockPreviewGroup(source: vscode.TextEditor | undefined): Promise<void> {
+  if (!panel) return;
+  try {
+    panel.reveal(panel.viewColumn, false); // take focus so the lock targets this group
+    await vscode.commands.executeCommand('workbench.action.lockEditorGroup');
+    if (source) {
+      await vscode.window.showTextDocument(source.document, { viewColumn: source.viewColumn, preserveFocus: false });
+    } else {
+      await vscode.commands.executeCommand('workbench.action.focusPreviousGroup');
+    }
+  } catch {
+    return; // lock command unavailable — leave the group as-is, no notice
+  }
+  void notifyPreviewLockedOnce();
+}
+
+async function notifyPreviewLockedOnce(): Promise<void> {
+  const KEY = 'previewLockNoticeShown';
+  if (extCtx.globalState.get<boolean>(KEY)) return;
+  await extCtx.globalState.update(KEY, true);
+  const choice = await vscode.window.showInformationMessage(
+    "SVG Path Studio locked the preview's editor group, so files you open from the Explorer go to your code column instead of opening on top of the preview. You can turn this off in settings.",
+    'Got it', 'Settings',
+  );
+  if (choice === 'Settings') {
+    await vscode.commands.executeCommand('workbench.action.openSettings', 'svgPathHelper.lockPreviewGroup');
+  }
 }
 
 function pointKind(upper: string): 'xy' | 'x' | 'y' {
@@ -508,19 +602,23 @@ function handleWebviewMessage(msg: any): void {
   if (msg.type === 'selectElement') { selectElementInEditor(msg.id, msg.uri, msg.version); return; }
 }
 
-/** Move the editor cursor to the start tag of the element with data-sph-el `id`. */
+/**
+ * Select the full opening tag of element `id` — and its matching closing tag
+ * too, as a second selection, when the element has one. Used by both preview
+ * click-to-select and the right-click ancestor-stack menu.
+ */
 function selectElementInEditor(id: number, uri: string, version: number): void {
   if (typeof id !== 'number' || id < 0) return;
   const editor = editorForDoc(uri, version); // bail if the previewed text has since changed
   if (!editor) return;
   const doc = editor.document;
-  const pos = elementTagPos(doc.getText(), id);
-  if (!pos) return;
-  const start = doc.positionAt(pos.start + 1); // just after '<'
-  const end = doc.positionAt(pos.start + 1 + pos.tag.length);
-  const range = new vscode.Range(start, end);
-  editor.selection = new vscode.Selection(start, end);
-  editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  const ranges = elementTagRanges(doc.getText(), id);
+  if (!ranges) return;
+  const sel = ([a, b]: [number, number]) => new vscode.Selection(doc.positionAt(a), doc.positionAt(b));
+  const selections = [sel(ranges.open)];
+  if (ranges.close) selections.push(sel(ranges.close));
+  editor.selections = selections;
+  editor.revealRange(sel(ranges.open), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
 
 function onDragMove(ctx: DragCtx, x: number, y: number): void {
@@ -627,6 +725,80 @@ function getHtml(webview: vscode.Webview): string {
 <script nonce="${nonce}" src="${jsUri}"></script>
 </body>
 </html>`;
+}
+
+// ---------------------------------------------------------------------------
+// "Open With" custom editor — a view-only preview tab (priority "option", so it
+// never displaces VS Code's default; the user opts in). Reuses the same webview
+// HTML/protocol as the side panel; editing stays in the source + side preview.
+// ---------------------------------------------------------------------------
+
+const EMPTY_OVERLAY: OverlayData = {
+  pathIndex: -1, pathD: null, segD: null, handles: [], points: [], selected: null, elementId: -1,
+};
+
+class SvgPreviewEditorProvider implements vscode.CustomTextEditorProvider {
+  resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel): void {
+    const webview = webviewPanel.webview;
+    webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(extCtx.extensionUri, 'media')],
+    };
+    webview.html = getHtml(webview);
+
+    const render = (): void => {
+      const region = extractSvg(document.getText());
+      webview.postMessage({
+        type: 'render', svg: region ? tagSvg(region.svg) : '', config: previewConfig(),
+        uri: document.uri.toString(), version: document.version,
+      });
+      webview.postMessage({ type: 'overlay', data: EMPTY_OVERLAY });
+    };
+    let renderTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRender = (): void => {
+      if (renderTimer) clearTimeout(renderTimer);
+      renderTimer = setTimeout(render, 120); // coalesce bursts of incremental edits
+    };
+
+    const subs = [
+      vscode.workspace.onDidChangeTextDocument((e) => {
+        if (e.document.uri.toString() === document.uri.toString()) scheduleRender();
+      }),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('svgPathHelper.preview')) render(); // only bg/grid affect output
+      }),
+      webview.onDidReceiveMessage((msg: any) => {
+        if (!msg) return;
+        if (msg.type === 'ready') { render(); return; }
+        // View-only: clicking an element opens the source as text beside and
+        // selects it (drag messages don't occur — no draggable points are sent).
+        if (msg.type === 'selectElement') { void openSourceAndSelect(document.uri, msg.id); return; }
+      }),
+    ];
+    webviewPanel.onDidDispose(() => {
+      if (renderTimer) clearTimeout(renderTimer);
+      for (const d of subs) d.dispose();
+    });
+  }
+}
+
+/** Open `uri` as a source text editor beside, then select element `id`'s tags. */
+async function openSourceAndSelect(uri: vscode.Uri, id: number): Promise<void> {
+  if (typeof id !== 'number' || id < 0) return;
+  const doc = await vscode.workspace.openTextDocument(uri);
+  // Reuse an already-visible source editor for this file; only split if none.
+  const existing = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri.toString());
+  const editor = await vscode.window.showTextDocument(doc, {
+    viewColumn: existing ? existing.viewColumn : vscode.ViewColumn.Beside,
+    preserveFocus: false,
+  });
+  const ranges = elementTagRanges(doc.getText(), id);
+  if (!ranges) return;
+  const sel = ([a, b]: [number, number]) => new vscode.Selection(doc.positionAt(a), doc.positionAt(b));
+  const selections = [sel(ranges.open)];
+  if (ranges.close) selections.push(sel(ranges.close));
+  editor.selections = selections;
+  editor.revealRange(sel(ranges.open), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
 
 // ---------------------------------------------------------------------------
