@@ -32,10 +32,10 @@ a **grid** toggle. Driven by the cursor position, the preview overlays:
   (orange, with dashed handles);
 - the **selected point** (yellow, enlarged) when the cursor is on a coordinate.
 
-**Click to select:** click an object in the preview to move the editor cursor
-to its tag; right-click to get a menu of the whole stack of objects under the
-pointer (hover an entry to highlight it), so you can reach an element hidden
-behind others.
+**Click to select:** click an object in the preview to select its full opening
+tag — and the matching closing tag, if any — in the editor; right-click to get a
+menu of the whole stack of objects under the pointer (hover an entry to
+highlight it), so you can reach an element hidden behind others.
 
 The overlay is drawn through each path element's live CTM, so it tracks the
 geometry **through parent `<g transform>`s and the path's own transform** —
@@ -46,6 +46,24 @@ translate, rotate, scale, skew, nested, all of it:
 *The square lives inside `<g transform="translate(120 20) rotate(25) scale(0.6)">`.
 The overlay (outline, red top edge, selected corner) stays locked to the rendered,
 transformed shape.*
+
+### Opening SVG files
+VS Code opens `.svg` files in its built-in **Image Preview** by default, which
+has no source text for this extension to work on. To keep editing fluid:
+
+- the **`SVG Path: Open Preview`** button reopens the current image-preview tab
+  as source code, then opens the preview beside it;
+- while the preview is open, picking another `.svg` in the Explorer reopens it
+  as source too, so the preview keeps following it — built-in image preview
+  only, third-party SVG editors are left alone
+  (`svgPathHelper.openSvgFilesAsSource`);
+- the preview's editor group is **locked** so files you open from the Explorer
+  land in your code column instead of on top of the preview
+  (`svgPathHelper.lockPreviewGroup`);
+- a view-only **SVG Path Studio Preview** is offered under **Open With…**
+  (right-click an `.svg` → *Open With*) — it shows the same preview as a tab and
+  never changes your default `.svg` editor; click an element in it to open the
+  source and select that element.
 
 ### Rulers & coordinate readout
 Top and left rulers are calibrated to the root `viewBox` coordinate space and
@@ -143,6 +161,8 @@ captured with headless Chrome.
 | --- | --- | --- |
 | `svgPathHelper.precision` | `6` | Fractional digits kept when converting/dragging. |
 | `svgPathHelper.autoOpenPreview` | `true` | Auto-open the preview beside an `.svg` file. |
+| `svgPathHelper.lockPreviewGroup` | `true` | Lock the preview's editor group so Explorer opens go to the code column, not over the preview. |
+| `svgPathHelper.openSvgFilesAsSource` | `true` | While the preview is open, open `.svg` files from the Explorer as source instead of the built-in image preview. |
 | `svgPathHelper.preview.background` | `checker` | Default preview background (`checker`/`light`/`dark`). |
 | `svgPathHelper.preview.showGrid` | `true` | Show the coordinate grid & rulers by default. |
 | `svgPathHelper.colors.command` | `#4fc1ff` | Command letter colour. |
