@@ -1,0 +1,8 @@
+{
+  "workbench.editorAssociations": { "*.svg": "default" },
+  "svgPathHelper.autoOpenPreview": true,
+  "svgPathHelper.lockPreviewGroup": false,
+  "workbench.colorTheme": "Default Dark Modern",
+  "window.commandCenter": false,
+  "workbench.tips.enabled": false
+}

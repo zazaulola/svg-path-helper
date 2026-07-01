@@ -3,3 +3,5 @@ dist/
 demo/
 *.vsix
 .DS_Store
+.vscode-test-web/
+tools/out/
