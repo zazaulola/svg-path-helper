@@ -7,14 +7,15 @@
 
 A VS Code extension for hand-writing and editing SVG paths: a live preview that
 highlights the path segment under your cursor, cursor-aware syntax colouring
-inside `<path d="…">`, draggable points, and absolute⇄relative conversion.
+inside `<path d="…">`, draggable points, and absolute⇄relative conversion. Runs
+in desktop VS Code **and in the browser** — vscode.dev, github.dev, code-server.
 
-![Editor highlighting and live preview](screenshots/hero.png)
+![Cursor-aware highlighting and live preview](screenshots/cursor-sweep.gif)
 
-*Left: the `d` attribute coloured by the extension — command letters, end-point
-and control-point coordinates, the segment under the cursor, and the selected
-point. Right: the preview overlays the current path, the current segment, its
-control points (with handles), and the selected end point.*
+*As the cursor sweeps through `<path d="…">`, the editor decorations and the
+preview overlay update together — command letters, end-point / control-point
+coordinates, the current segment, the selected point, control handles, and the
+calibrated rulers. Captured live from the extension running in VS Code for the Web.*
 
 ## Features
 
@@ -32,6 +33,11 @@ a **grid** toggle. Driven by the cursor position, the preview overlays:
   (orange, with dashed handles);
 - the **selected point** (yellow, enlarged) when the cursor is on a coordinate.
 
+![Preview toolbar: zoom, background, grid](screenshots/toolbar.gif)
+
+*The preview toolbar — zoom (− / % / + / Fit), background (checkerboard / light /
+dark), and the grid + rulers toggle.*
+
 **Click to select:** click an object in the preview to select its full opening
 tag — and the matching closing tag, if any — in the editor; right-click to get a
 menu of the whole stack of objects under the pointer (hover an entry to
@@ -41,11 +47,11 @@ The overlay is drawn through each path element's live CTM, so it tracks the
 geometry **through parent `<g transform>`s and the path's own transform** —
 translate, rotate, scale, skew, nested, all of it:
 
-![Overlay follows a parent transform](screenshots/transform.png)
+![Overlay follows a parent transform](screenshots/transform-follow.gif)
 
-*The square lives inside `<g transform="translate(120 20) rotate(25) scale(0.6)">`.
-The overlay (outline, red top edge, selected corner) stays locked to the rendered,
-transformed shape.*
+*The purple square lives inside `<g transform="translate(120 20) rotate(25)
+scale(0.6)">`. As the cursor moves along its `d`, the overlay (outline, segment,
+selected corner) stays locked to the rendered, rotated-and-scaled shape.*
 
 ### Opening SVG files
 VS Code opens `.svg` files in its built-in **Image Preview** by default, which
@@ -95,6 +101,11 @@ coordinate in the `d` attribute updates. The drag is committed as a **single
 undo step** on release, and the cursor lands on the coordinate you edited.
 Relative segments receive a delta from the segment start; `H`/`V` edit a single
 number; arcs keep their `rx ry rotation large-arc sweep` flags.
+
+![Dragging a control point rewrites the d attribute](screenshots/drag-point.gif)
+
+*Dragging a cubic's control handle: the curve deforms live (with a coordinate
+badge) and the matching number in `d` is rewritten as a single undo step on release.*
 
 ### Absolute / relative conversion
 Right-click in an `.svg`/XML/HTML file (or use the command palette):
@@ -151,9 +162,12 @@ Then press **F5** ("Run SVG Path Helper") to launch an Extension Development
 Host, open `example.svg`, run **SVG Path: Open Preview**, and move the cursor
 through a `d` attribute (or drag a point in the preview).
 
-The screenshots above are generated faithfully from the real `media/preview.*`
-and the real parser via `tools/gen-demo.ts` (`node dist/gen-demo.js`) and
-captured with headless Chrome.
+`npm run build` bundles the extension for both the Node and the browser
+extension hosts (`dist/extension.js` + `dist/web/extension.js`). The static
+figures come from `tools/gen-demo.ts` (the real `media/preview.*` + parser, shot
+with headless Chrome); the animated demos are captured from the **real extension
+running in web VS Code** by `tools/screencast.mjs` (`@vscode/test-web` +
+Playwright → GIF/APNG).
 
 ## Settings
 
